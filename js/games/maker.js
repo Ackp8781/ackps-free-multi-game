@@ -103,9 +103,31 @@ App.register({
       draw();
     }
 
-    function run(game, back) {
+    async function run(game, back) {
       ctx.clear();
-      const c = ctx.canvas(COLS * T, ROWS * T), g = c.getContext('2d'), hud = ctx.hud();
+      await loadThree();
+      if (!ctx.stage.isConnected) return;
+      const hud = ctx.hud();
+      const W3 = COLS * T, H3 = ROWS * T;
+      const st = Gfx.stage(ctx, { ratio: 2.2, fov: 30, top: game.sky, bottom: '#ffffff', shadow: 560, center: [W3 / 2, -H3 / 2, 0], sunDir: [.3, .9, .7], reserve: 240 });
+      const s = st.scene;
+      const dist3 = H3 / 2 / Math.tan(15 * Math.PI / 180);
+      st.camera.position.set(W3 / 2, -H3 / 2 + 50, dist3);
+      st.camera.lookAt(W3 / 2, -H3 / 2, 0);
+      const tileObj = new Map();
+      const place3d = (i, m, ox = T / 2, oy = T / 2) => { m.position.set(i % COLS * T + ox, -(Math.floor(i / COLS) * T + oy), 0); s.add(m); tileObj.set(i, m); return m; };
+      const dirt = Gfx.mat(0x7a4f2a), grassM = Gfx.mat(0x4caf50), brick = Gfx.mat(0xb5533c, { roughness: .8 }), steel = Gfx.mat(0xdfe4ea, { metalness: .7, roughness: .25 }), spring = Gfx.mat(0xffb300, { roughness: .3 });
+      game.tiles.forEach((v, i) => {
+        if (v === 1) {
+          const above = i >= COLS && game.tiles[i - COLS] === 1;
+          place3d(i, above ? Gfx.box(T, T, T * 2, dirt) : Gfx.group(Gfx.box(T, T * .72, T * 2, dirt, 0, -T * .14, 0), Gfx.box(T, T * .28, T * 2.08, grassM, 0, T * .36, 0)));
+        } else if (v === 2) place3d(i, Gfx.box(T - 1, T - 1, T * 2, brick));
+        else if (v === 3) place3d(i, Gfx.group(Gfx.cone(5.5, 20, steel, -6, -2, 0, 8), Gfx.cone(5.5, 20, steel, 6, -2, 0, 8), Gfx.cone(5.5, 20, steel, 0, -2, 8, 8), Gfx.cone(5.5, 20, steel, 0, -2, -8, 8)));
+        else if (v === 4) place3d(i, (() => { const m = Gfx.Models.coin(); m.scale.setScalar(20); m.userData.coin = true; return m; })());
+        else if (v === 5) place3d(i, (() => { const m = Gfx.Models.flag(); m.scale.setScalar(16); return m; })(), T / 2, T);
+        else if (v === 8) place3d(i, Gfx.group(Gfx.box(20, 6, 20, spring, 0, -9, 0), Gfx.cyl(6, 8, 6, Gfx.mat(0x888888, { metalness: .7 }), 0, -4, 0)));
+      });
+      const hero = Gfx.Models.avatar(0xff5d8f, 0x2d3a66); hero.scale.setScalar(9.5); s.add(hero);
       ctx.help('Arrows or WASD to move, Space or up to jump. R restarts.');
       ctx.touch([['←', 'ArrowLeft'], ['→', 'ArrowRight'], ['⤒', ' ']]);
       const tiles = [...game.tiles];
@@ -119,9 +141,15 @@ App.register({
         return tiles[ty * COLS + tx];
       };
       const enemies = [];
-      tiles.forEach((v, i) => { if (v === 7) { enemies.push({ x: i % COLS * T + 2, y: Math.floor(i / COLS) * T + 4, dir: -1, alive: true }); tiles[i] = 0; } });
+      tiles.forEach((v, i) => {
+        if (v === 7) {
+          const m = Gfx.Models.foe(0xa55eea); m.scale.setScalar(9); s.add(m);
+          enemies.push({ x: i % COLS * T + 2, y: Math.floor(i / COLS) * T + 4, dir: -1, alive: true, m });
+          tiles[i] = 0;
+        }
+      });
       const pl = { x: home.x, y: home.y, vx: 0, vy: 0, ground: false, w: 16, h: 22 };
-      let coins = 0, deaths = 0, over = false, time = 0;
+      let coins = 0, deaths = 0, over = false, time = 0, walk = 0;
       const total = tiles.filter(v => v === 4).length;
       const GRAV = game.grav * 130, JUMP = Math.sqrt(2 * GRAV * (game.jump * 12));
       const respawn = () => { pl.x = home.x; pl.y = home.y; pl.vx = pl.vy = 0; deaths++; };
@@ -132,7 +160,7 @@ App.register({
       };
       ctx.loop(dt => {
         time += over ? 0 : dt;
-        if (over) return;
+        if (over) { st.render(dt); return; }
         const k = ctx.keys;
         const dir = (k.has('ArrowRight') || k.has('d') ? 1 : 0) - (k.has('ArrowLeft') || k.has('a') ? 1 : 0);
         pl.vx = dir * 190;
@@ -149,7 +177,11 @@ App.register({
         if (pl.y > ROWS * T) respawn();
         for (const [x, y, v] of overlaps(pl.x, pl.y, pl.w, pl.h)) {
           if (v === 3) { respawn(); break; }
-          if (v === 4) { tiles[y * COLS + x] = 0; coins++; }
+          if (v === 4) {
+            const i = y * COLS + x, m = tileObj.get(i);
+            tiles[i] = 0; coins++;
+            if (m) { st.burst(m.position, 0xffd23f, 10, 3, 80); s.remove(m); }
+          }
           if (v === 8 && pl.vy >= 0) { pl.vy = -JUMP * 1.5; }
           if (v === 5) {
             over = true;
@@ -163,14 +195,18 @@ App.register({
           const ahead = e.dir > 0 ? e.x + 20 : e.x;
           if (SOLID(at(ahead, e.y + 10)) || !SOLID(at(ahead, e.y + 24))) e.dir *= -1;
           if (pl.x < e.x + 20 && pl.x + pl.w > e.x && pl.y < e.y + 20 && pl.y + pl.h > e.y) {
-            if (pl.vy > 0 && pl.y + pl.h < e.y + 12) { e.alive = false; pl.vy = -JUMP * .6; } else respawn();
+            if (pl.vy > 0 && pl.y + pl.h < e.y + 12) { e.alive = false; pl.vy = -JUMP * .6; st.burst(e.m.position, 0xa55eea, 14, 3, 90); s.remove(e.m); } else respawn();
           }
+          e.m.position.set(e.x + 10, -(e.y + 20), 0);
+          e.m.rotation.y = e.dir > 0 ? 0 : Math.PI;
         }
-        g.fillStyle = game.sky; g.fillRect(0, 0, c.width, c.height);
-        tiles.forEach((v, i) => { if (v !== 6) drawTile(g, v, i % COLS, Math.floor(i / COLS)); });
-        for (const e of enemies) if (e.alive) { g.fillStyle = '#a55eea'; g.fillRect(e.x, e.y, 20, 20); g.fillStyle = '#fff'; g.fillRect(e.x + 4, e.y + 5, 4, 4); g.fillRect(e.x + 12, e.y + 5, 4, 4); }
-        g.fillStyle = '#ff5d8f'; g.fillRect(pl.x, pl.y, pl.w, pl.h);
-        g.fillStyle = '#fff'; g.fillRect(pl.x + (dir < 0 ? 2 : 9), pl.y + 5, 5, 5);
+        walk += dt * (dir ? 13 : 0);
+        hero.position.set(pl.x + pl.w / 2, -(pl.y + pl.h), 0);
+        if (dir) hero.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+        const sw = dir ? Math.sin(walk) * .8 : 0, u = hero.userData;
+        u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armL.rotation.x = -sw; u.armR.rotation.x = sw;
+        for (const m of tileObj.values()) if (m.userData.coin) m.rotation.y += dt * 3;
+        st.render(dt);
         hud.replaceChildren(el('span', {}, game.name), el('span', {}, '🪙 ', el('b', {}, `${coins}/${total}`)), el('span', {}, '💀 ', el('b', {}, deaths)), el('button', { class: 'btn alt small', onclick: back }, 'Exit'));
       });
     }

@@ -60,8 +60,10 @@ main{max-width:1180px;margin:auto;padding:20px 16px 48px}
 .gem{font-size:96px;background:none;border:0;cursor:pointer;line-height:1.1;user-select:none;touch-action:manipulation}
 .gem:active{transform:scale(.92)}
 .float{position:relative;display:inline-block}
-.game3d{position:relative;width:100%;max-width:1100px}
-.game3d canvas{width:100%;height:auto;max-height:calc(100vh - 170px)}
+.game3d{position:relative;max-width:100%}
+.game3d canvas{max-height:none;max-width:100%}
+.gemview{width:240px;height:240px;cursor:pointer}
+.gemview .game3d canvas{border:0;background:none}
 .cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font-size:24px;pointer-events:none;text-shadow:0 0 3px #000}
 .hotbar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:3px;pointer-events:none}
 .hotbar span{width:38px;height:38px;border:3px solid #0008;border-radius:4px}

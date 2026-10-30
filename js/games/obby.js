@@ -11,24 +11,8 @@ App.register({
       ctx.clear();
       await loadThree();
       if (!ctx.stage.isConnected) return;
-      const wrap = el('div', { class: 'game3d' });
-      ctx.stage.append(wrap);
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      const canvas = renderer.domElement;
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      wrap.append(canvas);
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x8fd3ff);
-      const camera = new THREE.PerspectiveCamera(65, 16 / 9, .1, 400);
-      const size = () => {
-        const w = wrap.clientWidth, h = Math.min(w * 9 / 16, innerHeight - 170);
-        renderer.setSize(w, h, false); canvas.style.height = h + 'px'; camera.aspect = w / h; camera.updateProjectionMatrix();
-      };
-      size();
-      ctx.on(window, 'resize', size);
-      ctx.add(() => { renderer.dispose(); renderer.forceContextLoss(); });
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x6677aa, .95));
-      const sun = new THREE.DirectionalLight(0xffffff, .6); sun.position.set(30, 60, 20); scene.add(sun);
+      const st = Gfx.stage(ctx, { top: '#3f8fe6', bottom: '#ffd9b0', fog: [0xffc9a0, 90, 320], fov: 65, near: .1, far: 700, shadow: 34, hemi: .8, sunDir: [.5, 1, .4], reserve: 170 });
+      const { wrap, canvas, scene, camera } = st;
       const tip = el('div', { class: 'tag3d' });
       wrap.append(tip);
       ctx.help('WASD or arrows to move, Space to jump, drag the view to turn the camera.');
@@ -37,8 +21,9 @@ App.register({
       const r = rng(seed), boxes = [];
       const COLORS = [0x3fa7ff, 0x3fe0c5, 0xffd23f, 0xb07bff, 0x7bed9f, 0xff9f43];
       const add = (x, y, z, w, h, d, color, extra = {}) => {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
-        m.position.set(x, y, z); scene.add(m);
+        const glow = extra.kill ? { emissive: 0xff2200, emissiveIntensity: .7 } : extra.goal ? { metalness: .7, roughness: .25, emissive: 0x553a00 } : { roughness: .4 };
+        const m = Gfx.box(w, h, d, new THREE.MeshStandardMaterial({ color, ...glow }), x, y, z);
+        scene.add(m);
         const b = { m, x, y, z, w, h, d, dx: 0, dz: 0, ...extra };
         boxes.push(b);
         return b;
@@ -55,6 +40,7 @@ App.register({
           cz -= 2;
           add(cx, cy - .5, cz, 9, 1, 9, 0xffffff, { check: true });
           checkpoints.push({ x: cx, y: cy + 2, z: cz });
+          const f = Gfx.Models.flag(0x3fe0c5); f.position.set(cx + 3.5, cy, cz - 3.5); scene.add(f);
           cz -= 2;
         } else if (type < .25 + hard * .1) {
           add(cx, cy - .4, cz, 4, .8, 4, 0xff3b3b, { kill: false, color: 0x777777 }).m.material.color.setHex(COLORS[i % 6]);
@@ -68,21 +54,24 @@ App.register({
       }
       cz -= 7;
       add(cx, cy - .5, cz, 12, 1, 12, 0xffc400, { goal: true });
+      const trophy = Gfx.group(Gfx.cyl(.7, .9, .4, Gfx.mat(0x8a6a10), 0, .2, 0), Gfx.cyl(.15, .15, 1, Gfx.mat(0xffc400, { metalness: .9, roughness: .2 }), 0, .9, 0), Gfx.cyl(1, .4, 1.3, Gfx.mat(0xffc400, { metalness: .9, roughness: .2 }), 0, 2, 0));
+      trophy.position.set(cx, cy, cz - 3); scene.add(trophy);
       const minY = -14;
-      const lava = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshBasicMaterial({ color: 0xff6a1a }));
-      lava.rotation.x = -Math.PI / 2; lava.position.y = minY - 6; scene.add(lava);
+      const lavaTex = (() => {
+        const c = el('canvas', { width: 128, height: 128 }), g = c.getContext('2d'), n = rng(7);
+        g.fillStyle = '#e8430f'; g.fillRect(0, 0, 128, 128);
+        for (let i = 0; i < 90; i++) { g.fillStyle = ['#ff8a1a', '#ffc13b', '#b82a08'][i % 3]; g.beginPath(); g.arc(n() * 128, n() * 128, 2 + n() * 9, 0, 7); g.fill(); }
+        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(70, 70);
+        return t;
+      })();
+      const lava = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), new THREE.MeshBasicMaterial({ map: lavaTex }));
+      lava.rotation.x = -Math.PI / 2; lava.position.y = minY - 6; lava.position.z = cz / 2; scene.add(lava);
+      for (let i = 0; i < 26; i++) {
+        const c = Gfx.Models.cloud(); c.scale.setScalar(4 + r() * 6);
+        c.position.set((r() - .5) * 160, 16 + r() * 30, cz * r()); scene.add(c);
+      }
 
-      const avatar = (shirt, pants) => {
-        const g = new THREE.Group(), m = c => new THREE.MeshLambertMaterial({ color: c });
-        const part = (w, h, d, c, x, y) => { const p = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m(c)); p.position.set(x, y, 0); g.add(p); return p; };
-        part(.9, .9, .5, shirt, 0, 1.25);
-        part(.5, .5, .5, 0xffd23f, 0, 1.95);
-        const armL = part(.35, .9, .4, 0xffd23f, -.65, 1.25), armR = part(.35, .9, .4, 0xffd23f, .65, 1.25);
-        const legL = part(.42, .85, .45, pants, -.23, .42), legR = part(.42, .85, .45, pants, .23, .42);
-        g.userData = { armL, armR, legL, legR };
-        scene.add(g);
-        return g;
-      };
+      const avatar = (shirt, pants) => { const g = Gfx.Models.avatar(shirt, pants); scene.add(g); return g; };
       const pl = { x: 0, y: 2, z: 0, vx: 0, vz: 0, vy: 0, ground: false, ride: null, cp: 0, face: 0, deaths: 0 };
       const body = avatar(0xff5d8f, 0x2d3a66);
       let camYaw = 0, camPitch = .42, drag = null, time = 0, done = false, walk = 0;
@@ -115,17 +104,20 @@ App.register({
       };
       const HW = .45, HH = 2.2;
       ctx.loop(dt => {
-        if (done) { renderer.render(scene, camera); return; }
+        if (done) { st.render(dt); return; }
         time += dt;
+        lavaTex.offset.x += dt * .03; lavaTex.offset.y += dt * .018;
+        trophy.rotation.y += dt;
+        st.follow(pl.x, pl.y, pl.z);
         for (const b of boxes) if (b.swing) {
           const nx = b.base + Math.sin(time * b.speed + b.phase) * b.swing;
           b.dx = nx - b.x; b.x = nx; b.m.position.x = nx;
         }
         const k = ctx.keys;
         const fw = (k.has('w') || k.has('ArrowUp') ? 1 : 0) - (k.has('s') || k.has('ArrowDown') ? 1 : 0);
-        const st = (k.has('d') || k.has('ArrowRight') ? 1 : 0) - (k.has('a') || k.has('ArrowLeft') ? 1 : 0);
+        const strafe = (k.has('d') || k.has('ArrowRight') ? 1 : 0) - (k.has('a') || k.has('ArrowLeft') ? 1 : 0);
         const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
-        let mx = -sin * fw + cos * st, mz = -cos * fw - sin * st;
+        let mx = -sin * fw + cos * strafe, mz = -cos * fw - sin * strafe;
         const l = Math.hypot(mx, mz);
         if (l) { mx /= l; mz /= l; pl.face = Math.atan2(-mx, -mz); walk += dt * 11; }
         if (k.has(' ') && pl.ground) { pl.vy = 13.5; pl.ground = false; }
@@ -165,7 +157,7 @@ App.register({
         camera.position.set(pl.x + sin * Math.cos(camPitch) * dist, pl.y + 1.5 + Math.sin(camPitch) * dist, pl.z + cos * Math.cos(camPitch) * dist);
         camera.lookAt(pl.x, pl.y + 1.5, pl.z);
         tip.textContent = `⏱ ${time.toFixed(1)}s · 🚩 Checkpoint ${pl.cp + 1}/${checkpoints.length} · 💀 ${pl.deaths}`;
-        renderer.render(scene, camera);
+        st.render(dt);
       });
     }
   },

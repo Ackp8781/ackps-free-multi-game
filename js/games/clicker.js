@@ -3,7 +3,9 @@ App.register({
   id: 'clicker', name: 'Gem Mine Simulator', icon: '💎', online: false,
   desc: 'Click for gems, hire workers, and rebirth for bonuses.',
   fmtBest: b => fmt(b) + ' gems',
-  mount(ctx) {
+  async mount(ctx) {
+    await loadThree();
+    if (!ctx.stage.isConnected) return;
     const SHOP = [
       { id: 'pick', name: 'Better Pickaxe', icon: '⛏️', base: 15, click: 1, info: '+1 per click' },
       { id: 'miner', name: 'Miner', icon: '👷', base: 25, rate: 1, info: '+1 gem/s' },
@@ -28,7 +30,13 @@ App.register({
 
     const count = el('h2', { style: 'font-size:30px', 'aria-live': 'off' });
     const rate = el('p', { class: 'note', style: 'margin:0' });
-    const gem = el('button', { class: 'gem', 'aria-label': 'Mine a gem', onclick: () => { gain(perClick()); paint(); } }, '💎');
+    const gem = el('button', { class: 'gem gemview', 'aria-label': 'Mine a gem', style: 'padding:0', onclick: () => {
+      gain(perClick()); paint();
+      kick = 1;
+      if (view) view.burst(new THREE.Vector3(0, 0, 1), COLORS[Math.min(s.rebirths, COLORS.length - 1)], 8, .16, 5);
+    } });
+    const COLORS = [0x4fe3ff, 0xff5dc8, 0x7bff8a, 0xffd23f, 0xc08bff, 0xff6b4a];
+    let kick = 0, view = null;
     const rebirth = el('button', { class: 'btn alt', onclick: () => {
       if (s.total < REBIRTH * Math.pow(4, s.rebirths)) return;
       s.gems = 0; s.total = 0; s.own = {}; s.rebirths++; save(); paint();
@@ -42,6 +50,22 @@ App.register({
       return { i, b, owned, cost };
     });
     ctx.stage.append(count, rate, gem, el('div', { class: 'shop', style: 'max-width:980px' }, ...rows.map(r => r.b)), rebirth);
+    view = Gfx.stage(ctx, { parent: gem, ratio: 1, fov: 40, near: .1, far: 100, top: '#1a1540', bottom: '#2a2358', sunDir: [.4, 1, .8], shadow: 5 });
+    view.camera.position.set(0, .6, 6); view.camera.lookAt(0, 0, 0);
+    let crystal = null, crystalTier = -1;
+    const fill = new THREE.PointLight(0xffffff, .8); fill.position.set(-3, 2, 4); view.scene.add(fill);
+    ctx.loop(dt => {
+      const tier = Math.min(s.rebirths, COLORS.length - 1);
+      if (tier !== crystalTier) {
+        if (crystal) view.scene.remove(crystal);
+        crystal = Gfx.Models.gem(COLORS[tier]); view.scene.add(crystal); crystalTier = tier;
+      }
+      kick = Math.max(0, kick - dt * 5);
+      crystal.rotation.y += dt * (.7 + kick * 9);
+      crystal.rotation.x = Math.sin(crystal.rotation.y * .5) * .15;
+      crystal.scale.setScalar(1 + kick * .16);
+      view.render(dt);
+    });
     ctx.help('Your mine keeps earning at half speed for up to 2 hours while you are away. Rebirth resets your mine for a permanent +50% bonus.');
     if (offline > 1) ctx.message('Welcome back!', `Your workers mined ${fmt(offline)} gems while you were away.`, [{ label: 'Collect', fn: () => {} }]);
 

@@ -51,24 +51,18 @@ App.register({
       const edits = room ? {} : ctx.data('edits', {});
       for (const k in edits) world[+k] = edits[k];
 
-      const wrap = el('div', { class: 'game3d' });
-      ctx.stage.append(wrap);
-      const renderer = new THREE.WebGLRenderer({ antialias: false });
-      const canvas = renderer.domElement;
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      wrap.append(canvas);
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x87ceeb);
-      scene.fog = new THREE.Fog(0x87ceeb, 40, 90);
-      const camera = new THREE.PerspectiveCamera(72, 16 / 9, .1, 150);
-      const size = () => {
-        const w = wrap.clientWidth, h = Math.min(w * 9 / 16, innerHeight - 170);
-        renderer.setSize(w, h, false); canvas.style.height = h + 'px'; camera.aspect = w / h; camera.updateProjectionMatrix();
-      };
-      size();
-      ctx.on(window, 'resize', size);
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x777777, .85));
-      const sun = new THREE.DirectionalLight(0xffffff, .55); sun.position.set(.5, 1, .3); scene.add(sun);
+      const st = Gfx.stage(ctx, { top: '#4c9fe8', bottom: '#cfeeff', fog: [0xbfe4f7, 45, 110], fov: 72, near: .1, far: 400, shadow: 40, hemi: .72, sunPower: .75, sunDir: [.5, 1, .3], reserve: 170 });
+      const { wrap, canvas, scene, camera } = st;
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(SX + 400, SZ + 400), new THREE.MeshStandardMaterial({ color: 0x2f8fd6, transparent: true, opacity: .72, roughness: .12, metalness: .2 }));
+      water.rotation.x = -Math.PI / 2; water.position.set(SX / 2, 12.6, SZ / 2); scene.add(water);
+      const sunBall = new THREE.Mesh(new THREE.SphereGeometry(9, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff6c8, fog: false }));
+      sunBall.position.set(SX / 2 + 110, 210, SZ / 2 + 66); scene.add(sunBall);
+      const clouds = [];
+      const cr = rng(seed + 9), cloudM = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: .9, fog: false });
+      for (let i = 0; i < 24; i++) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(8 + cr() * 22, 2.5, 8 + cr() * 18), cloudM);
+        c.position.set(cr() * (SX + 200) - 100, 62 + cr() * 8, cr() * (SZ + 200) - 100); scene.add(c); clouds.push(c);
+      }
 
       const tc = document.createElement('canvas'); tc.width = tc.height = 16;
       const tg = tc.getContext('2d'), nr = rng(9);
@@ -94,7 +88,19 @@ App.register({
             if (get(x + f.n[0], y + f.n[1], z + f.n[2])) continue;
             const v0 = pos.length / 3;
             tmpCol.setHex(d.all !== undefined ? d.all : d[f.s]);
-            for (const c of f.c) { pos.push(x + c[0], y + c[1], z + c[2]); nor.push(...f.n); col.push(tmpCol.r, tmpCol.g, tmpCol.b); }
+            for (const c of f.c) {
+              // Corner shading: darken a vertex for each solid block touching it on the open side.
+              const o = [0, 1, 2].map(a => (f.n[a] ? f.n[a] : c[a] ? 1 : -1));
+              const ax = f.n[0] ? 1 : 0, bx = f.n[2] ? 1 : 2;
+              const at = (ua, ub) => {
+                const p = [x + f.n[0], y + f.n[1], z + f.n[2]];
+                if (ua) p[ax] += o[ax];
+                if (ub) p[bx] += o[bx];
+                return get(p[0], p[1], p[2]) ? 1 : 0;
+              };
+              const ao = 1 - .17 * (at(1, 0) + at(0, 1) + at(1, 1));
+              pos.push(x + c[0], y + c[1], z + c[2]); nor.push(...f.n); col.push(tmpCol.r * ao, tmpCol.g * ao, tmpCol.b * ao);
+            }
             uv.push(0, 0, 1, 0, 1, 1, 0, 1);
             idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
           }
@@ -108,6 +114,7 @@ App.register({
         geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
         geo.setIndex(idx);
         const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true; mesh.receiveShadow = true;
         scene.add(mesh); chunks.set(key, mesh);
       }
       for (let cx = 0; cx * CH < SX; cx++) for (let cz = 0; cz * CH < SZ; cz++) buildChunk(cx, cz);
@@ -206,12 +213,8 @@ App.register({
 
       const others = {};
       const avatar = () => {
-        const g = new THREE.Group();
-        const m = c => new THREE.MeshLambertMaterial({ color: c });
-        const body = new THREE.Mesh(new THREE.BoxGeometry(.6, .9, .3), m(0x3f7fd1)); body.position.y = .95;
-        const head = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .5), m(0xf2c79b)); head.position.y = 1.6;
-        const legs = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .28), m(0x2d3a66)); legs.position.y = .25;
-        g.add(body, head, legs);
+        const g = Gfx.Models.avatar(0x3f7fd1, 0x2d3a66, 0xf2c79b);
+        g.scale.setScalar(.72);
         scene.add(g);
         return g;
       };
@@ -227,14 +230,15 @@ App.register({
         ctx.every(5000, persist);
         ctx.add(persist);
       }
-      ctx.add(() => { renderer.dispose(); renderer.forceContextLoss(); });
 
       ctx.loop(dt => {
+        for (const c of clouds) { c.position.x += dt * .9; if (c.position.x > SX + 110) c.position.x = -110; }
+        st.follow(pl.x, pl.y, pl.z);
         const k = ctx.keys, sp = pl.fly ? 11 : 5;
         const fw = (k.has('w') || k.has('ArrowUp') ? 1 : 0) - (k.has('s') || k.has('ArrowDown') ? 1 : 0);
-        const st = (k.has('d') || k.has('ArrowRight') ? 1 : 0) - (k.has('a') || k.has('ArrowLeft') ? 1 : 0);
+        const strafe = (k.has('d') || k.has('ArrowRight') ? 1 : 0) - (k.has('a') || k.has('ArrowLeft') ? 1 : 0);
         const sin = Math.sin(pl.yaw), cos = Math.cos(pl.yaw);
-        const mx = (-sin * fw + cos * st) * sp * dt, mz = (-cos * fw - sin * st) * sp * dt;
+        const mx = (-sin * fw + cos * strafe) * sp * dt, mz = (-cos * fw - sin * strafe) * sp * dt;
         if (!blocked(pl.x + mx, pl.y, pl.z)) pl.x += mx;
         if (!blocked(pl.x, pl.y, pl.z + mz)) pl.z += mz;
         if (pl.fly) {
@@ -251,7 +255,7 @@ App.register({
         const r = ray();
         sel.visible = !!r;
         if (r) sel.position.set(r.hit[0] + .5, r.hit[1] + .5, r.hit[2] + .5);
-        renderer.render(scene, camera);
+        st.render(dt);
       });
     }
   },
