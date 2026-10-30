@@ -31,7 +31,9 @@ const Store = {
 };
 const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 const loadThree = () => window.THREE ? Promise.resolve() : new Promise((ok, no) => {
-  const s = el('script', { src: THREE_URL, onload: ok, onerror: () => no(new Error('Could not load the 3D engine.')) });
+  const spin = el('div', { class: 'loader', role: 'status' }, el('i'), 'Loading 3D…');
+  document.body.append(spin);
+  const s = el('script', { src: THREE_URL, onload: () => { spin.remove(); ok(); }, onerror: () => { spin.remove(); no(new Error('Could not load the 3D engine.')); } });
   document.head.append(s);
 });
 
@@ -50,6 +52,32 @@ const App = (() => {
   };
   const unlocked = () => { try { return sessionStorage.getItem('amg.gate') === '1'; } catch (e) { return false; } };
 
+  function toast(text) {
+    const t = el('div', { class: 'toast', role: 'status', onanimationend: () => t.remove() }, text);
+    document.body.append(t);
+  }
+  // Slow drifting stars behind the menus. Paused during games to leave them the frame budget.
+  function backdrop() {
+    const c = el('canvas', { class: 'stars', 'aria-hidden': 'true' }), g = c.getContext('2d');
+    document.body.prepend(c);
+    const fit = () => { c.width = innerWidth; c.height = innerHeight; };
+    fit(); addEventListener('resize', fit);
+    const stars = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), r: .5 + Math.random() * 1.6, s: .004 + Math.random() * .012, p: Math.random() * 6 }));
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const frame = now => {
+      if (!location.hash.startsWith('#/play/') || calm) {
+        g.clearRect(0, 0, c.width, c.height);
+        for (const s of stars) {
+          const y = ((s.y - (calm ? 0 : now * .00001 * s.s * 100)) % 1 + 1) % 1;
+          g.globalAlpha = .35 + .5 * Math.abs(Math.sin(now * .001 + s.p));
+          g.fillStyle = '#fff'; g.beginPath(); g.arc(s.x * c.width, y * c.height, s.r, 0, 7); g.fill();
+        }
+      }
+      if (!calm) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+
   function show(...nodes) { root().replaceChildren(...nodes); }
 
   function gate() {
@@ -65,7 +93,12 @@ const App = (() => {
           Sfx.play('upgrade');
           route();
         } else { Sfx.play('hurt'); err.textContent = 'Wrong code.'; input.value = ''; input.focus(); const b = input.closest('.box'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); }
-      } }, input, err, el('button', { class: 'btn' }, 'Enter')))));
+      } }, input, err,
+        el('div', { class: 'keypad' }, ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'].map(k => el('button', { type: 'button', class: k === '✓' ? 'go' : '', onclick: () => {
+          if (k === '⌫') input.value = input.value.slice(0, -1);
+          else if (k === '✓') input.form.requestSubmit();
+          else if (input.value.length < 8) input.value += k;
+        } }, k)))))));
     input.focus();
   }
 
@@ -108,26 +141,60 @@ const App = (() => {
   }
 
   function hub() {
-    const best = g => {
-      const b = Store.get(`u.${user.key}.best.${g.id}`);
-      return b == null ? null : el('span', { class: 'tag solo' }, `Best ${g.fmtBest ? g.fmtBest(b) : fmt(b)}`);
+    const best = g => Store.get(`u.${user.key}.best.${g.id}`);
+    const played = games.filter(g => best(g) != null).length;
+    let filter = 'All', query = '';
+    const grid = el('div', { class: 'grid' });
+    const draw = () => {
+      const q = query.toLowerCase();
+      const list = games.filter(g => (filter === 'All' || (filter === 'Online') === !!g.online) && (g.name + g.desc).toLowerCase().includes(q));
+      grid.replaceChildren(...list.map((g, i) => {
+        const hue = games.indexOf(g) * 36, b = best(g);
+        const card = el('a', { class: 'card', style: `animation-delay:${i * 45}ms;--hue:${hue}`, href: '#/play/' + g.id,
+          onpointermove: e => {
+            if (e.pointerType !== 'mouse') return;
+            const r = card.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+            card.style.transform = `perspective(700px) rotateY(${x * 12}deg) rotateX(${-y * 12}deg) translateY(-4px)`;
+          },
+          onpointerleave: () => { card.style.transform = ''; } },
+          el('div', { class: 'art' }, el('span', { class: 'ico', 'aria-hidden': 'true', style: `animation-delay:${i * -.4}s` }, g.icon)),
+          el('h3', {}, g.name), el('p', {}, g.desc),
+          el('div', { class: 'cardfoot' },
+            el('span', {}, el('span', { class: 'tag' + (g.online ? '' : ' solo') }, g.online ? 'Solo + online' : 'Solo'),
+              b == null ? null : el('span', { class: 'tag solo' }, `Best ${g.fmtBest ? g.fmtBest(b) : fmt(b)}`)),
+            el('span', { class: 'playcue' }, 'Play ▶')));
+        return card;
+      }));
+      if (!list.length) grid.append(el('p', { class: 'note' }, 'No games match that search.'));
     };
+    const chips = el('div', { class: 'row' });
+    const drawChips = () => chips.replaceChildren(...['All', 'Online', 'Solo only'].map(c => el('button', { class: 'chip' + (filter === c ? ' on' : ''), onclick: () => { filter = c; drawChips(); draw(); } }, c)));
+    drawChips(); draw();
     show(topbar(), el('main', {},
-      el('h2', {}, 'Pick a game'),
-      el('div', { class: 'grid' }, ...games.map((g, i) => el('a', { class: 'card', style: `animation-delay:${i * 45}ms`, href: '#/play/' + g.id },
-        el('div', { class: 'ico', 'aria-hidden': 'true' }, g.icon),
-        el('h3', {}, g.name),
-        el('p', {}, g.desc),
-        el('span', { class: 'tag' + (g.online ? '' : ' solo') }, g.online ? 'Solo + online' : 'Solo'), best(g))))));
+      el('section', { class: 'hero' },
+        el('div', {}, el('h1', {}, `Welcome, ${user.name}`), el('p', {}, `${games.length} free games. You've set a score in ${played}.`),
+          el('div', { class: 'meter', 'aria-hidden': 'true' }, el('i', { style: `width:${played / games.length * 100}%` }))),
+        el('div', { class: 'heroart', 'aria-hidden': 'true' }, ...['🎮', '🏎️', '🐟', '⛏️'].map((e, i) => el('span', { style: `animation-delay:${i * -.8}s` }, e)))),
+      el('div', { class: 'filters' }, chips, el('input', { type: 'search', placeholder: 'Search games', 'aria-label': 'Search games', oninput: e => { query = e.target.value; draw(); } })),
+      grid));
   }
 
   function play(g) {
     const stage = el('div', { class: 'stage' });
+    const bestPill = el('span', { class: 'pill' });
+    const drawBest = () => {
+      const b = Store.get(`u.${user.key}.best.${g.id}`);
+      bestPill.textContent = b == null ? 'No best yet' : `🏆 ${g.fmtBest ? g.fmtBest(b) : fmt(b)}`;
+    };
     show(topbar(), el('main', {},
       el('div', { class: 'bar' },
         el('a', { class: 'btn alt small', href: '#/', style: 'text-decoration:none;display:inline-flex;align-items:center' }, '← Games'),
-        el('h2', {}, `${g.icon} ${g.name}`)),
+        el('h2', {}, `${g.icon} ${g.name}`), bestPill,
+        el('button', { class: 'btn alt small', 'aria-label': 'Fullscreen', onclick: () => {
+          if (document.fullscreenElement) document.exitFullscreen(); else if (stage.requestFullscreen) stage.requestFullscreen().catch(() => {});
+        } }, '⛶')),
       stage));
+    drawBest();
     let cleanups = [];
     const pfx = `u.${user.key}.`;
     const ctx = {
@@ -138,7 +205,12 @@ const App = (() => {
       // Records a score if it beats the stored one; returns true on a new best.
       score(v, lower) {
         const b = ctx.best();
-        if (b == null || (lower ? v < b : v > b)) { Store.set(pfx + 'best.' + g.id, v); return true; }
+        if (b == null || (lower ? v < b : v > b)) {
+          Store.set(pfx + 'best.' + g.id, v);
+          if (g.id !== 'clicker') toast('🏆 New best!');
+          drawBest();
+          return true;
+        }
         return false;
       },
       add: f => cleanups.push(f),
@@ -190,12 +262,14 @@ const App = (() => {
         stage.append(t);
       },
       message(title, text, buttons = []) {
+        let confetti = false;
         if (/over|boom|eaten|fell|draw| won$/i.test(title)) Sfx.play('lose');
         else if (/welcome/i.test(title)) Sfx.play('coin');
-        else if (!/closed|could not/i.test(title)) Sfx.play('win');
+        else if (!/closed|could not/i.test(title)) { Sfx.play('win'); confetti = true; }
         const o = el('div', { class: 'overlay' }, el('div', { class: 'box' },
           el('h3', {}, title), text ? el('p', { class: 'note' }, text) : null,
           el('div', { class: 'stack' }, ...buttons.map((b, i) => el('button', { class: 'btn' + (i ? ' alt' : ''), onclick: () => { o.remove(); b.fn(); } }, b.label)))));
+        if (confetti) for (let i = 0; i < 36; i++) o.append(el('i', { class: 'confetti', style: `left:${Math.random() * 100}%;background:hsl(${Math.random() * 360} 90% 60%);animation-delay:${Math.random() * .5}s;animation-duration:${1.2 + Math.random()}s` }));
         stage.append(o);
         return o;
       },
@@ -206,7 +280,7 @@ const App = (() => {
         const err = el('p', { class: 'err', role: 'alert' });
         const code = el('input', { class: 'code', style: 'font-size:16px', maxLength: 5, placeholder: 'CODE', 'aria-label': 'Room code', autocapitalize: 'characters' });
         const fail = e => { err.textContent = e.message; };
-        const box = el('div', { class: 'box' }, el('h3', {}, g.name), intro ? el('p', { class: 'note' }, intro) : null,
+        const box = el('div', { class: 'box lobby' }, el('div', { class: 'lobbyicon', 'aria-hidden': 'true' }, g.icon), el('h3', {}, g.name), el('p', { class: 'note' }, g.desc), intro ? el('p', { class: 'note' }, intro) : null,
           el('div', { class: 'stack' },
             el('button', { class: 'btn', onclick: () => start(null, Math.floor(Math.random() * 1e9)) }, 'Play solo'),
             ...extra.map(x => el('button', { class: 'btn alt', onclick: x.fn }, x.label)),
@@ -269,6 +343,7 @@ const App = (() => {
   return {
     register: g => games.push(g),
     boot() {
+      backdrop();
       document.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('button:not(.gem),a.card,a.btn')) Sfx.play('click'); });
       window.addEventListener('hashchange', route); route(); },
   };

@@ -29,7 +29,7 @@ App.register({
         return b;
       };
       add(0, -1, 0, 16, 2, 16, 0x7bd17b);
-      const checkpoints = [{ x: 0, y: 2, z: 0 }];
+      const checkpoints = [{ x: 0, y: 2, z: 0 }], flags = [];
       let cx = 0, cy = 0, cz = -8;
       const COUNT = 32;
       for (let i = 1; i <= COUNT; i++) {
@@ -40,7 +40,7 @@ App.register({
           cz -= 2;
           add(cx, cy - .5, cz, 9, 1, 9, 0xffffff, { check: true });
           checkpoints.push({ x: cx, y: cy + 2, z: cz });
-          const f = Gfx.Models.flag(0x3fe0c5); f.position.set(cx + 3.5, cy, cz - 3.5); scene.add(f);
+          const f = Gfx.Models.flag(0x3fe0c5); f.position.set(cx + 3.5, cy, cz - 3.5); scene.add(f); flags.push(f);
           cz -= 2;
         } else if (type < .25 + hard * .1) {
           add(cx, cy - .4, cz, 4, .8, 4, 0xff3b3b, { kill: false, color: 0x777777 }).m.material.color.setHex(COLORS[i % 6]);
@@ -109,6 +109,8 @@ App.register({
         time += dt;
         lavaTex.offset.x += dt * .03; lavaTex.offset.y += dt * .018;
         trophy.rotation.y += dt;
+        trophy.position.y = cy + Math.sin(time * 2) * .15;
+        flags.forEach((f, i) => { f.rotation.y = Math.sin(time * 3 + i) * .3; });
         st.follow(pl.x, pl.y, pl.z);
         for (const b of boxes) if (b.swing) {
           const nx = b.base + Math.sin(time * b.speed + b.phase) * b.swing;
@@ -164,6 +166,11 @@ App.register({
         if (!pl.ground) { u.armL.rotation.x = u.armR.rotation.x = 2.6; u.legL.rotation.x = .5; u.legR.rotation.x = -.5; }
         squash *= Math.exp(-12 * dt);
         body.scale.set(1 + squash * .3, 1 - squash * .4, 1 + squash * .3);
+        if (!l && pl.ground) {
+          const b = Math.sin(time * 2.4);
+          u.armL.rotation.z = b * .07; u.armR.rotation.z = -b * .07; body.scale.y *= 1 + b * .015;
+          body.rotation.y = pl.face + Math.sin(time * .7) * .25;
+        }
 
       const dist = 12;
         camera.position.set(pl.x + sin * Math.cos(camPitch) * dist, pl.y + 1.5 + Math.sin(camPitch) * dist, pl.z + cos * Math.cos(camPitch) * dist);

@@ -268,7 +268,7 @@ App.register({
         if (moving && !pl.fly && Math.sin(stride) * Math.sin(stride - dt * 10) < 0) Sfx.play('skid');
         swing = Math.max(0, swing - dt * 5);
         arm.rotation.x = -Math.sin(swing * Math.PI) * 1.1;
-        arm.position.y = -.36 + bob * .5;
+        arm.position.y = -.36 + bob * .5 + Math.sin(performance.now() * .0018) * .008;
         camera.position.set(pl.x, pl.y + EYE + bob, pl.z);
         camera.rotation.set(pl.pitch, pl.yaw, 0, 'YXZ');
         const r = ray();

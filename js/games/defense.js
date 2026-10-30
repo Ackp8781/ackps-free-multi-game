@@ -150,6 +150,7 @@ App.register({
           for (const f of foes) if (!f.dead && Math.hypot(f.x - p.x, f.y - p.y) <= s2.range && (!target || f.seg > target.seg)) target = f;
           if (target && t.k !== 'frost') t.m.userData.head.rotation.y = -Math.atan2(target.y - p.y, target.x - p.x);
           if (t.k === 'frost') t.m.userData.head.rotation.y += dt * 2;
+          else if (!target) t.m.userData.head.rotation.y += dt * .5;
           t.m.position.y *= Math.exp(-14 * dt);
           if (t.cd > 0 || !target) continue;
           t.cd = s2.rate;

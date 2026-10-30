@@ -124,7 +124,13 @@ App.register({
         hud.replaceChildren(el('span', {}, '⏱ ', el('b', {}, placed ? time() : 0)), el('span', {}, '💣 ', el('b', {}, M - cells.filter(c => c.flag).length)),
           ...Object.entries(rivals).map(([n, v]) => el('span', {}, `${n}: `, el('b', {}, v))));
       });
-      ctx.loop(dt => st.render(dt));
+      ctx.loop((dt, now) => {
+        // Idle: a slow wave rolls over the unopened tiles and the camera drifts.
+        tiles.forEach((t, i) => { if (!cells[i].open) t.position.y = Math.sin(now * .002 + i % W * .5 + i / W * .5) * .035; });
+        st.camera.position.x = Math.sin(now * .0004) * .35;
+        st.camera.lookAt(0, 0, .3);
+        st.render(dt);
+      });
     }
   },
 });
@@ -205,7 +211,7 @@ App.register({
         });
         hills.forEach((h, i) => { h.position.x = ((i * 300 - dist * .25) % 2400 + 2400) % 2400 - 700; });
         clouds.forEach((c, i) => { c.position.x = ((i * 280 - dist * .12 - now * .004) % 1500 + 1500) % 1500 - 500; });
-        me.position.set(110, H - y, 0);
+        me.position.set(110, H - y + (begun ? 0 : Math.sin(now * .004) * 12), 0);
         me.rotation.z = alive ? clamp(-v / 600, -1, .5) : me.rotation.z - dt * 7;
         me.scale.set(16 * (1 - flapT * .9), 16 * (1 + flapT * 1.2), 16);
         flapT = Math.max(0, flapT - dt);
@@ -358,6 +364,7 @@ App.register({
           nameTag.position.set(toX(me.x), toY(me.y) + me.s + 18, 0); nameTag.scale.set(90, 20, 1);
         }
         for (const b of bubbles) { const u = b.userData; b.position.set(u.x + Math.sin(t + u.o) * 8, -H / 2 + (t * u.sp + u.o) % H, u.z); }
+        if (me.alive && Math.random() < dt * .8) st.burst(mine.position.clone().setX(mine.position.x + me.face * me.s), 0xdff6ff, 1, 3, 30);
         for (const w of weeds) w.rotation.z = Math.sin(t * 1.2 + w.userData.p) * .09;
         hud.replaceChildren(el('span', {}, 'Size ', el('b', {}, Math.floor(me.s))), el('span', {}, 'Eaten ', el('b', {}, eaten)));
         st.render(dt);

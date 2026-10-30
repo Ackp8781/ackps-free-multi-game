@@ -68,6 +68,8 @@ App.register({
       crystal.rotation.y += dt * (.7 + kick * 9);
       crystal.rotation.x = Math.sin(crystal.rotation.y * .5) * .15;
       crystal.scale.setScalar(1 + kick * .16);
+      crystal.position.y = Math.sin(performance.now() * .002) * .14;
+      if (Math.random() < dt * 1.5) view.burst(new THREE.Vector3((Math.random() - .5) * 2.4, (Math.random() - .5) * 2.4, 1.2), 0xffffff, 1, .07, 1);
       view.render(dt);
     });
     ctx.help('Your mine keeps earning at half speed for up to 2 hours while you are away. Rebirth resets your mine for a permanent +50% bonus.');

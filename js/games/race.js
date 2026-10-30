@@ -233,7 +233,7 @@ App.register({
           if (go) spin(b.m);
         }
         for (const id in others) { const o = others[id]; o.m.position.set(o.x, 2, o.y); o.m.rotation.y = -o.a; }
-        mine.position.set(me.x, 2, me.y);
+        mine.position.set(me.x, 2 + (Math.abs(me.v) < 5 ? Math.sin(performance.now() * .05) * .22 : 0), me.y);
         mine.rotation.y = -me.a;
         mine.rotation.x = steer * clamp(me.v / MAX, 0, 1) * .06;
         mine.userData.wheels.slice(0, 2).forEach(w => { w.rotation.y = -steer * .4; });

@@ -206,6 +206,7 @@ App.register({
         if (dir) hero.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
         const sw = dir ? Math.sin(walk) * .8 : 0, u = hero.userData;
         u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armL.rotation.x = -sw; u.armR.rotation.x = sw;
+        if (!dir && pl.ground) { const b = Math.sin(time * 2.5); u.armL.rotation.z = b * .07; u.armR.rotation.z = -b * .07; hero.rotation.y = Math.sin(time * .8) * .35; hero.scale.y = 9.5 * (1 + b * .015); }
         for (const m of tileObj.values()) if (m.userData.coin) m.rotation.y += dt * 3;
         st.render(dt);
         hud.replaceChildren(el('span', {}, game.name), el('span', {}, '🪙 ', el('b', {}, `${coins}/${total}`)), el('span', {}, '💀 ', el('b', {}, deaths)), el('button', { class: 'btn alt small', onclick: back }, 'Exit'));

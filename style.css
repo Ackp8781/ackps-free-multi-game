@@ -95,3 +95,63 @@ main,.center .box{animation:fadein .3s ease-out}
 .field input[type=color]{flex:0 0 54px;min-width:54px;padding:3px}
 .field input[type=range]{padding:0;border:0;background:none}
 @media (prefers-reduced-motion:reduce){.card:hover{transform:none}}
+
+/* Menu and HUD polish */
+.stars{position:fixed;inset:0;z-index:-1;pointer-events:none}
+body{background-attachment:fixed}
+.logo{background:linear-gradient(90deg,#ffd23f,#ff5d8f,#3fe0c5,#ffd23f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;animation:shimmer 7s linear infinite}
+@keyframes shimmer{to{background-position:-300% 0}}
+.box{background:#1c1940e6;backdrop-filter:blur(8px);box-shadow:0 8px 0 #0a0820,0 0 50px #7a5cff33}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.keypad button{min-height:52px;font-size:20px;font-weight:800;border-radius:12px;background:var(--solid);border:2px solid var(--line);cursor:pointer;transition:transform .08s,background .12s}
+.keypad button:hover{background:#3b3580}
+.keypad button:active{transform:scale(.93)}
+.keypad .go{background:var(--acc);color:#221a00;border-color:#b98e10}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:24px;border-radius:20px;border:2px solid var(--line);background:linear-gradient(120deg,#3a2a7acc,#123f5ccc);overflow:hidden}
+.hero h1{font-size:clamp(24px,4vw,36px);font-weight:800}
+.hero p{margin:6px 0 10px;color:var(--dim)}
+.meter{height:10px;width:min(280px,100%);border-radius:9px;background:#0005;overflow:hidden}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .6s}
+.heroart{display:flex;gap:10px;font-size:clamp(28px,5vw,48px)}
+.heroart span{display:block;animation:bob 3s ease-in-out infinite}
+@media (max-width:560px){.heroart{display:none}}
+.filters{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+.filters input{width:min(260px,100%)}
+.chip{padding:7px 14px;min-height:38px;border-radius:99px;background:var(--solid);border:2px solid var(--line);cursor:pointer;font-weight:600}
+.chip.on{background:var(--acc);color:#221a00;border-color:var(--acc)}
+.card{position:relative;overflow:hidden;background:#1c1940e6;transition:transform .12s,border-color .15s,box-shadow .15s;will-change:transform}
+.card:hover{transform:translateY(-4px);border-color:hsl(var(--hue) 85% 65%);box-shadow:0 10px 30px hsl(var(--hue) 85% 50% / .35)}
+.card::after{content:'';position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(100deg,transparent,#fff2,transparent);transform:skewX(-18deg);pointer-events:none}
+.card:hover::after{left:130%;transition:left .65s}
+.art{display:grid;place-items:center;height:96px;margin:-16px -16px 10px;background:radial-gradient(circle at 50% 110%,hsl(var(--hue) 85% 60% / .75),hsl(var(--hue) 60% 22% / .9))}
+.card .ico{font-size:50px;animation:bob 3.4s ease-in-out infinite;filter:drop-shadow(0 6px 5px #0007)}
+.card:hover .ico{animation-duration:.7s}
+.cardfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.playcue{font-weight:800;color:hsl(var(--hue) 90% 72%);transition:transform .15s}
+.card:hover .playcue{transform:translateX(4px)}
+.pill{padding:4px 12px;border-radius:99px;background:#ffd23f22;color:var(--acc);font-weight:600;font-size:14px}
+.stage:fullscreen{background:var(--bg);justify-content:center;padding:10px}
+.hud span{background:#120f2ccc;border:1px solid var(--line);border-radius:99px;padding:3px 12px}
+.help{background:#120f2c99;padding:5px 12px;border-radius:10px}
+.lobbyicon{font-size:58px;line-height:1.2;animation:bob 3s ease-in-out infinite}
+.lobby .btn:hover{transform:translateY(-1px)}
+.btn:first-child{position:relative}
+.roomcode{animation:glow 1.8s ease-in-out infinite}
+@keyframes glow{50%{text-shadow:0 0 16px var(--acc2)}}
+.shop button{transition:transform .1s,border-color .15s}
+.shop button:not(:disabled){border-color:var(--acc2);animation:ready 1.8s ease-in-out infinite}
+.shop button:not(:disabled):hover{transform:translateY(-2px)}
+@keyframes ready{50%{box-shadow:0 0 12px #3fe0c566}}
+.hotbar span{transition:transform .12s}
+.hotbar span.on{transform:translateY(-5px) scale(1.15)}
+.game3d canvas{box-shadow:0 12px 40px #0009}
+.confetti{position:absolute;top:-12px;width:9px;height:14px;pointer-events:none;animation:fall 1.6s linear forwards}
+@keyframes fall{to{transform:translateY(95vh) rotate(720deg);opacity:.5}}
+.overlay{overflow:hidden}
+.overlay h3{font-size:24px}
+.toast{position:fixed;top:72px;left:50%;z-index:20;padding:10px 20px;border-radius:99px;background:var(--acc);color:#221a00;font-weight:800;box-shadow:0 6px 20px #0008;animation:toast 2.2s ease forwards}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-20px) scale(.8)}12%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-20px)}}
+.loader{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;display:grid;justify-items:center;gap:10px;font-weight:600}
+.loader i{width:44px;height:44px;border-radius:50%;border:5px solid var(--line);border-top-color:var(--acc);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.logo,.card .ico,.heroart span,.lobbyicon,.roomcode,.shop button:not(:disabled){animation:none}.confetti{display:none}.card::after{display:none}}
