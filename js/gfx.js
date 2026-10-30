@@ -67,7 +67,37 @@ const Gfx = (() => {
         bits.push({ m, life: .7, v: new THREE.Vector3((Math.random() - .5) * 2, Math.random() * 1.6, (Math.random() - .5) * 2).multiplyScalar(power), g: power * 2 });
       }
     };
+    // Flashes and shaking stay off for players who ask for reduced motion.
+    const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let quake = 0;
+    const shake = a => { if (!calm) quake = Math.max(quake, a); };
+    const flash = color => {
+      if (calm) return;
+      const f = el('div', { class: 'flash', style: 'background:' + color, onanimationend: () => f.remove() });
+      wrap.append(f);
+    };
+    const tweens = [];
+    const tween = (time, fn) => tweens.push({ t: 0, time, fn });
+    // Springs an object up from nothing to its current size.
+    const pop = obj => {
+      const s = obj.scale.clone();
+      tween(.3, k => { const b = 1 + 2.7 * Math.pow(k - 1, 3) + 1.7 * Math.pow(k - 1, 2); obj.scale.copy(s).multiplyScalar(Math.max(.001, b)); });
+    };
+    // An expanding shockwave that always faces the camera.
+    const ring = (pos, color, size) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 40), new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+      m.position.copy(pos); m.lookAt(camera.position); scene.add(m);
+      tween(.45, k => {
+        m.scale.setScalar(Math.max(.001, size * k)); m.material.opacity = 1 - k;
+        if (k >= 1) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
+      });
+    };
     const render = dt => {
+      for (let i = tweens.length - 1; i >= 0; i--) {
+        const w = tweens[i];
+        w.t = Math.min(w.time, w.t + dt); w.fn(w.t / w.time);
+        if (w.t >= w.time) tweens.splice(i, 1);
+      }
       for (let i = bits.length - 1; i >= 0; i--) {
         const b = bits[i];
         b.life -= dt; b.v.y -= b.g * dt;
@@ -75,9 +105,15 @@ const Gfx = (() => {
         b.m.material.opacity = Math.max(0, b.life / .7);
         if (b.life <= 0) { scene.remove(b.m); b.m.material.dispose(); bits.splice(i, 1); }
       }
+      const base = camera.position.clone();
+      if (quake > .001) {
+        camera.position.x += (Math.random() - .5) * quake; camera.position.y += (Math.random() - .5) * quake; camera.position.z += (Math.random() - .5) * quake;
+        quake *= Math.exp(-9 * dt);
+      }
       renderer.render(scene, camera);
+      camera.position.copy(base);
     };
-    return { wrap, canvas, renderer, scene, camera, sun, follow, pick, pickObj, burst, render, size };
+    return { wrap, canvas, renderer, scene, camera, sun, follow, pick, pickObj, burst, render, size, shake, flash, pop, ring, tween };
   }
 
   const mesh = (geo, material, x = 0, y = 0, z = 0) => {

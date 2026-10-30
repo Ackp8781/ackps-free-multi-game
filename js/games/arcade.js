@@ -65,7 +65,7 @@ App.register({
         if (c.open) {
           t.material = openM; t.position.y = -.2;
           if (c.mine) { const m = Gfx.Models.mine(); m.position.y = .35; swap(i, m); }
-          else if (c.n) { const p = new THREE.Mesh(planeGeo, numTex(c.n)); p.rotation.x = -Math.PI / 2; p.position.y = .02; swap(i, p); }
+          else if (c.n) { const p = new THREE.Mesh(planeGeo, numTex(c.n)); p.rotation.x = -Math.PI / 2; p.position.y = .02; swap(i, p); st.pop(p); }
           else swap(i, null);
         } else if (c.flag) { const f = Gfx.Models.flag(); f.scale.setScalar(.32); f.position.y = .2; swap(i, f); }
         else swap(i, null);
@@ -80,7 +80,7 @@ App.register({
         cells.forEach((c, i) => { c.n = around(i).filter(a => cells[a].mine).length; });
         placed = true; t0 = performance.now();
       };
-      const flag = i => { if (!over && !cells[i].open) { cells[i].flag = !cells[i].flag; draw(i); } };
+      const flag = i => { if (!over && !cells[i].open) { cells[i].flag = !cells[i].flag; draw(i); Sfx.play('flag'); if (extra[i]) st.pop(extra[i]); } };
       function open(i) {
         if (over || cells[i].flag || cells[i].open) return;
         if (!placed) place(i);
@@ -88,8 +88,10 @@ App.register({
         while (stack.length) {
           const a = stack.pop(), c = cells[a];
           if (c.open || c.flag) continue;
-          c.open = true; opened++; draw(a);
-          if (c.mine) { st.burst(tiles[a].position.clone().setY(.5), 0xff7a1a, 40, .22, 7); return lose(); }
+          c.open = true; opened++; draw(a); Sfx.play('tick');
+          if (c.mine) { const at = tiles[a].position.clone().setY(.5);
+            st.burst(at, 0xff7a1a, 40, .22, 7); st.burst(at, 0x333333, 20, .3, 4); st.ring(at, 0xffc13b, 7); st.shake(1.2); st.flash('#ff7a1a'); Sfx.play('boom');
+            return lose(); }
           if (!c.n) stack.push(...around(a));
         }
         if (room) room.send({ t: 'p', pct: Math.round(opened / (W * H - M) * 100) });
@@ -103,7 +105,7 @@ App.register({
       function win() {
         const s = time();
         if (room) room.send({ t: 'won', s });
-        st.burst(new THREE.Vector3(0, 2, 0), 0xffd23f, 60, .25, 10);
+        st.burst(new THREE.Vector3(0, 2, 0), 0xffd23f, 60, .25, 10); st.burst(new THREE.Vector3(0, 2, 0), 0x3fe0c5, 40, .25, 8);
         end('You cleared it!', `${s} seconds.${ctx.score(s, true) ? ' New best!' : ''}`);
       }
       function lose() {
@@ -161,7 +163,7 @@ App.register({
         return g;
       });
       const me = Gfx.Models.bird(); me.scale.setScalar(16); s.add(me);
-      const flap = () => { if (alive) { begun = true; v = -400; flapT = .18; } };
+      const flap = () => { if (alive) { begun = true; v = -400; flapT = .18; Sfx.play('flap'); st.burst(me.position, 0xfff3c4, 3, 3, 50); } };
       ctx.on(canvas, 'pointerdown', e => { e.preventDefault(); flap(); });
       ctx.on(window, 'keydown', e => { if ((e.key === ' ' || e.key === 'ArrowUp') && !e.repeat) flap(); });
       if (room) {
@@ -180,7 +182,7 @@ App.register({
       }
       const die = () => {
         alive = false;
-        st.burst(me.position, 0xffd23f, 22, 7, 180);
+        st.burst(me.position, 0xffd23f, 22, 7, 180); st.shake(18); st.flash('#ffffff'); Sfx.play('hit');
         const nb = ctx.score(score);
         if (room) room.send({ t: 'b', y, alive, score });
         ctx.message('Game over', `Score ${score}.${nb ? ' New best!' : ''}`, room
@@ -190,7 +192,9 @@ App.register({
       ctx.loop((dt, now) => {
         if (begun && alive) {
           v += 1250 * dt; y += v * dt; dist += SPEED * dt;
+          const was = score;
           score = dist < 390 ? 0 : Math.floor((dist - 390) / SPACE) + 1;
+          if (score > was) { Sfx.play('ding'); st.ring(me.position, 0xffffff, 40); st.burst(me.position, 0xffd23f, 6, 4, 90); }
           if (y > H - 50 || y < 0) die();
         } else if (!alive && y < H - 62) { v += 1250 * dt; y = Math.min(H - 62, y + v * dt); }
         const first = Math.max(0, Math.floor((dist - 110) / SPACE) - 2);
@@ -202,7 +206,8 @@ App.register({
         hills.forEach((h, i) => { h.position.x = ((i * 300 - dist * .25) % 2400 + 2400) % 2400 - 700; });
         clouds.forEach((c, i) => { c.position.x = ((i * 280 - dist * .12 - now * .004) % 1500 + 1500) % 1500 - 500; });
         me.position.set(110, H - y, 0);
-        me.rotation.z = clamp(-v / 600, -1, .5);
+        me.rotation.z = alive ? clamp(-v / 600, -1, .5) : me.rotation.z - dt * 7;
+        me.scale.set(16 * (1 - flapT * .9), 16 * (1 + flapT * 1.2), 16);
         flapT = Math.max(0, flapT - dt);
         const wing = (flapT > 0 ? Math.sin(flapT * 50) : Math.sin(now * .012) * .4) * .8;
         me.userData.wing.rotation.x = -wing; me.userData.wing2.rotation.x = wing;
@@ -260,7 +265,7 @@ App.register({
       const mine = Gfx.Models.fish(0xffd23f); s.add(mine);
       const nameTag = Gfx.label(ctx.user.name); s.add(nameTag);
       const me = { x: W / 2, y: H / 2, s: 14, alive: true, face: 1 };
-      let t = 0, target = null, eaten = 0;
+      let t = 0, target = null, eaten = 0, gulp = 0;
       const gone = new Set(), others = {}, cache = new Map(), live = new Map();
       const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
       const npc = i => {
@@ -297,7 +302,7 @@ App.register({
       };
       function die(why) {
         me.alive = false; mine.visible = false; nameTag.visible = false;
-        st.burst(new THREE.Vector3(toX(me.x), toY(me.y), 0), 0xffd23f, 26, 6, 170);
+        st.burst(new THREE.Vector3(toX(me.x), toY(me.y), 0), 0xffd23f, 26, 6, 170); st.shake(16); st.flash('#ff3b3b'); Sfx.play('hit');
         const score = Math.floor(me.s), nb = ctx.score(score);
         ctx.message('You got eaten!', `${why} Final size ${score}, ${eaten} fish eaten.${nb ? ' New best!' : ''}`, room
           ? [{ label: 'Back to menu', fn: ctx.restart }]
@@ -330,7 +335,7 @@ App.register({
           if (me.alive && Math.hypot(x - me.x, n.y - me.y) < (n.s + me.s) * .85) {
             if (me.s > n.s) {
               gone.add(i); drop(i); eaten++; me.s = Math.sqrt(me.s * me.s + n.s * n.s * .25);
-              st.burst(new THREE.Vector3(toX(x), toY(n.y), 0), n.col, 10, 4, 110);
+              st.burst(new THREE.Vector3(toX(x), toY(n.y), 0), n.col, 10, 4, 110); st.ring(new THREE.Vector3(toX(x), toY(n.y), 0), 0xffffff, n.s * 3); Sfx.play('eat'); gulp = 1;
               if (room) room.send({ t: 'ate', i });
             } else die('A bigger fish got you.');
           }
@@ -348,7 +353,8 @@ App.register({
         }
         if (me.alive) {
           mine.position.set(toX(me.x), toY(me.y), 0);
-          face(mine, me.face, t, me.s);
+          gulp = Math.max(0, gulp - dt * 5);
+          face(mine, me.face, t, me.s * (1 + gulp * .25));
           nameTag.position.set(toX(me.x), toY(me.y) + me.s + 18, 0); nameTag.scale.set(90, 20, 1);
         }
         for (const b of bubbles) { const u = b.userData; b.position.set(u.x + Math.sin(t + u.o) * 8, -H / 2 + (t * u.sp + u.o) % H, u.z); }

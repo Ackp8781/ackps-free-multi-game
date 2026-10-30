@@ -33,6 +33,9 @@ App.register({
     const gem = el('button', { class: 'gem gemview', 'aria-label': 'Mine a gem', style: 'padding:0', onclick: () => {
       gain(perClick()); paint();
       kick = 1;
+      Sfx.play('pop');
+      const num = el('span', { class: 'floatnum', style: `margin-left:${Math.random() * 90 - 45}px`, onanimationend: () => num.remove() }, '+' + fmt(perClick()));
+      gem.append(num);
       if (view) view.burst(new THREE.Vector3(0, 0, 1), COLORS[Math.min(s.rebirths, COLORS.length - 1)], 8, .16, 5);
     } });
     const COLORS = [0x4fe3ff, 0xff5dc8, 0x7bff8a, 0xffd23f, 0xc08bff, 0xff6b4a];
@@ -40,12 +43,13 @@ App.register({
     const rebirth = el('button', { class: 'btn alt', onclick: () => {
       if (s.total < REBIRTH * Math.pow(4, s.rebirths)) return;
       s.gems = 0; s.total = 0; s.own = {}; s.rebirths++; save(); paint();
+      Sfx.play('win'); view.flash('#ffffff'); view.ring(new THREE.Vector3(0, 0, 0), 0xffffff, 3); view.burst(new THREE.Vector3(0, 0, 1), 0xffd23f, 40, .16, 7);
     } });
     const rows = SHOP.map(i => {
       const owned = el('small'), cost = el('b');
       const b = el('button', { onclick: () => {
         const p = price(i);
-        if (s.gems >= p) { s.gems -= p; s.own[i.id] = (s.own[i.id] || 0) + 1; paint(); }
+        if (s.gems >= p) { s.gems -= p; s.own[i.id] = (s.own[i.id] || 0) + 1; Sfx.play('coin'); paint(); }
       } }, el('span', {}, `${i.icon} ${i.name}`, el('small', {}, i.info), owned), cost);
       return { i, b, owned, cost };
     });

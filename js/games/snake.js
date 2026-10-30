@@ -109,7 +109,10 @@ App.register({
         while (apples.length < state.apples.length) { const a = Gfx.Models.apple(); a.scale.setScalar(.48); scene.add(a); apples.push(a); }
         state.apples.forEach((a, i) => {
           const m = apples[i], x = gx(a[0]), z = gz(a[1]);
-          if (m.userData.x !== undefined && (m.userData.x !== x || m.userData.z !== z)) st.burst(new THREE.Vector3(m.userData.x, .6, m.userData.z), 0xff3b3b, 12, .16, 4);
+          if (m.userData.x !== undefined && (m.userData.x !== x || m.userData.z !== z)) {
+            const at = new THREE.Vector3(m.userData.x, .6, m.userData.z);
+            st.burst(at, 0xff3b3b, 14, .16, 4); st.ring(at, 0xffffff, 2.5); Sfx.play('eat'); st.pop(m);
+          }
           m.userData.x = x; m.userData.z = z;
         });
         for (const s of state.snakes) {
@@ -121,6 +124,11 @@ App.register({
             seg.position.copy(last ? last.position : new THREE.Vector3(gx(b[0]), .45, gz(b[1])));
             scene.add(seg); v.segs.push(seg);
             if (!n) { seg.add(v.eyes); seg.scale.setScalar(1.15); }
+          }
+          if (!s.alive && !v.deadFx) {
+            v.deadFx = true;
+            const at = v.segs[0].position;
+            st.burst(at, COLS[s.col], 30, .22, 6); st.shake(1); st.flash('#ff3b3b'); Sfx.play('hit');
           }
           v.m.opacity = v.alt.opacity = s.alive ? 1 : .25;
           v.head = Math.atan2(-s.d[1], s.d[0]);
@@ -149,7 +157,7 @@ App.register({
             const seg = v.segs[i];
             if (!seg) return;
             seg.position.x += (gx(b[0]) - seg.position.x) * f; seg.position.z += (gz(b[1]) - seg.position.z) * f;
-            seg.position.y = .45 + Math.sin(now * .012 - i * .7) * .04;
+            seg.position.y = .45 + Math.sin(now * .012 - i * .7) * .07;
           });
           if (v.segs[0]) v.segs[0].rotation.y = v.head;
         }

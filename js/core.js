@@ -62,8 +62,9 @@ const App = (() => {
         e.preventDefault();
         if (await sha(input.value) === GATE) {
           try { sessionStorage.setItem('amg.gate', '1'); } catch (x) {}
+          Sfx.play('upgrade');
           route();
-        } else { err.textContent = 'Wrong code.'; input.value = ''; input.focus(); }
+        } else { Sfx.play('hurt'); err.textContent = 'Wrong code.'; input.value = ''; input.focus(); const b = input.closest('.box'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); }
       } }, input, err, el('button', { class: 'btn' }, 'Enter')))));
     input.focus();
   }
@@ -102,6 +103,7 @@ const App = (() => {
     return el('header', { class: 'top' },
       el('a', { class: 'logo', href: '#/', style: 'text-decoration:none' }, "Ackp's Free Multi Game"),
       el('span', {}, '👤 ' + user.name),
+      el('button', { class: 'btn alt small', 'aria-label': 'Toggle sound', onclick: e => { e.currentTarget.textContent = Sfx.toggle() ? '🔇' : '🔊'; } }, Sfx.muted ? '🔇' : '🔊'),
       el('button', { class: 'btn alt small', onclick: () => { Store.del('session'); location.hash = '#/'; route(); } }, 'Log out'));
   }
 
@@ -112,7 +114,7 @@ const App = (() => {
     };
     show(topbar(), el('main', {},
       el('h2', {}, 'Pick a game'),
-      el('div', { class: 'grid' }, ...games.map(g => el('a', { class: 'card', href: '#/play/' + g.id },
+      el('div', { class: 'grid' }, ...games.map((g, i) => el('a', { class: 'card', style: `animation-delay:${i * 45}ms`, href: '#/play/' + g.id },
         el('div', { class: 'ico', 'aria-hidden': 'true' }, g.icon),
         el('h3', {}, g.name),
         el('p', {}, g.desc),
@@ -188,6 +190,9 @@ const App = (() => {
         stage.append(t);
       },
       message(title, text, buttons = []) {
+        if (/over|boom|eaten|fell|draw| won$/i.test(title)) Sfx.play('lose');
+        else if (/welcome/i.test(title)) Sfx.play('coin');
+        else if (!/closed|could not/i.test(title)) Sfx.play('win');
         const o = el('div', { class: 'overlay' }, el('div', { class: 'box' },
           el('h3', {}, title), text ? el('p', { class: 'note' }, text) : null,
           el('div', { class: 'stack' }, ...buttons.map((b, i) => el('button', { class: 'btn' + (i ? ' alt' : ''), onclick: () => { o.remove(); b.fn(); } }, b.label)))));
@@ -263,6 +268,8 @@ const App = (() => {
 
   return {
     register: g => games.push(g),
-    boot() { window.addEventListener('hashchange', route); route(); },
+    boot() {
+      document.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('button:not(.gem),a.card,a.btn')) Sfx.play('click'); });
+      window.addEventListener('hashchange', route); route(); },
   };
 })();

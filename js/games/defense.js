@@ -77,16 +77,17 @@ App.register({
         const full = sel.lv >= 4;
         info.append(el('span', {}, `${TOWERS[sel.k].icon} ${TOWERS[sel.k].name} level ${sel.lv}`),
           el('button', { class: 'btn small', disabled: full || gold < upCost(sel), onclick: () => {
-            gold -= upCost(sel); sel.spent += upCost(sel); sel.lv++; model(sel); drawInfo();
+            gold -= upCost(sel); sel.spent += upCost(sel); sel.lv++; model(sel); st.pop(sel.m); Sfx.play('upgrade'); drawInfo();
             const p = center(sel); st.burst(new THREE.Vector3(p.x, 40, p.y), 0xffd23f, 14, 4, 90);
           } }, full ? 'Max level' : `Upgrade $${upCost(sel)}`),
-          el('button', { class: 'btn alt small', onclick: () => { gold += Math.round(sel.spent * .7); s.remove(sel.m); towers.splice(towers.indexOf(sel), 1); sel = null; drawInfo(); } }, 'Sell'));
+          el('button', { class: 'btn alt small', onclick: () => { gold += Math.round(sel.spent * .7); Sfx.play('coin'); s.remove(sel.m); towers.splice(towers.indexOf(sel), 1); sel = null; drawInfo(); } }, 'Sell'));
       };
       drawTools();
 
       function nextWave() {
         if (queue.length || foes.length || over) return;
         wave++;
+        Sfx.play('horn');
         const n = 6 + wave * 2, hp = 22 * Math.pow(1.22, wave);
         queue = [];
         for (let i = 0; i < n; i++) queue.push({ hp, sp: 60 + wave * 2 + (i % 4 === 3 ? 35 : 0), r: 11, gold: 4 + Math.floor(wave / 3), col: i % 4 === 3 ? 0xff9f43 : 0xff5d8f });
@@ -106,6 +107,7 @@ App.register({
           gold -= d.cost;
           const t = { k: pick, x: q.x, y: q.y, lv: 1, cd: 0, spent: d.cost };
           model(t); towers.push(t);
+          st.pop(t.m); Sfx.play('place'); st.burst(t.m.position.clone().setY(4), 0xc9a66b, 10, 4, 70);
         }
       });
       const stat = t => { const d = TOWERS[t.k], m = t.lv - 1; return { range: d.range * (1 + m * .12), rate: d.rate * Math.pow(.88, m), dmg: d.dmg * (1 + m * .75), splash: d.splash, slow: d.slow }; };
@@ -114,6 +116,8 @@ App.register({
         f.hp -= n;
         if (f.hp <= 0 && !f.dead) {
           f.dead = true; gold += f.gold; if (sel) drawInfo();
+          Sfx.play('pop');
+          if (f.boss) { st.shake(14); st.flash('#ffd23f'); st.ring(new THREE.Vector3(f.x, 25, f.y), 0xffd23f, 90); }
           st.burst(new THREE.Vector3(f.x, 16, f.y), f.col, f.boss ? 30 : 10, 4, 100);
         }
       }
@@ -123,7 +127,7 @@ App.register({
           if (spawnT <= 0) {
             spawnT = .7;
             const q = queue.shift(), m = Gfx.Models.foe(q.col, q.boss);
-            m.scale.setScalar(q.r); s.add(m);
+            m.scale.setScalar(q.r); s.add(m); st.pop(m);
             const barBg = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x000000 })), bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x55ff55 }));
             barBg.scale.set(28, 4, 1); bar.scale.set(28, 4, 1); bar.renderOrder = 1; s.add(barBg, bar);
             foes.push({ ...q, maxHp: q.hp, seg: 0, x: path[0].x, y: path[0].y, slow: 0, m, bar, barBg, t: Math.random() * 6 });
@@ -137,7 +141,7 @@ App.register({
             f.m.rotation.y = -Math.atan2(dy, dx);
             if (l <= move) { f.x = b.x; f.y = b.y; f.seg++; move -= l; } else { f.x += dx / l * move; f.y += dy / l * move; move = 0; }
           }
-          if (f.seg >= path.length - 1 && !f.dead) { f.dead = true; lives -= f.boss ? 5 : 1; st.burst(new THREE.Vector3(W - 30, 60, f.y), 0xff4040, 14, 5, 120); }
+          if (f.seg >= path.length - 1 && !f.dead) { f.dead = true; lives -= f.boss ? 5 : 1; Sfx.play('hurt'); st.flash('#ff3b3b'); st.shake(6); st.burst(new THREE.Vector3(W - 30, 60, f.y), 0xff4040, 14, 5, 120); }
         }
         for (const t of towers) {
           t.cd -= dt;
@@ -146,8 +150,11 @@ App.register({
           for (const f of foes) if (!f.dead && Math.hypot(f.x - p.x, f.y - p.y) <= s2.range && (!target || f.seg > target.seg)) target = f;
           if (target && t.k !== 'frost') t.m.userData.head.rotation.y = -Math.atan2(target.y - p.y, target.x - p.x);
           if (t.k === 'frost') t.m.userData.head.rotation.y += dt * 2;
+          t.m.position.y *= Math.exp(-14 * dt);
           if (t.cd > 0 || !target) continue;
           t.cd = s2.rate;
+          Sfx.play(t.k === 'arrow' ? 'shoot' : t.k);
+          t.m.position.y = -3;
           const m = new THREE.Mesh(shotGeo, new THREE.MeshBasicMaterial({ color: TOWERS[t.k].col }));
           const y0 = 15 * (1 + t.lv * .45 + .9);
           m.position.set(p.x, y0, p.y); s.add(m);
@@ -160,6 +167,7 @@ App.register({
               const b = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: 0xff9a1f, transparent: true, opacity: .55, depthWrite: false }));
               b.position.set(q.f.x, 10, q.f.y); s.add(b);
               blasts.push({ m: b, r: q.s.splash, t: .28 });
+              st.shake(4); Sfx.play('boom');
               for (const f of foes) if (!f.dead && Math.hypot(f.x - q.f.x, f.y - q.f.y) <= q.s.splash) hurt(f, q.s.dmg);
             } else if (!q.f.dead) hurt(q.f, q.s.dmg);
             if (q.s.slow) q.f.slow = 1.6;

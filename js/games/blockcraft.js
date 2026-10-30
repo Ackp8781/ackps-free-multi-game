@@ -174,15 +174,27 @@ App.register({
         }
         return null;
       };
+      // First-person arm that swings on every action.
+      scene.add(camera);
+      const arm = Gfx.box(.16, .16, .6, Gfx.mat(0xf2c79b), .42, -.36, -.55);
+      arm.castShadow = false; camera.add(arm);
+      let swing = 0, stride = 0;
       const act = button => {
+        swing = 1;
         const r = ray();
         if (!r) return;
-        if (button === 0) { if (r.hit[1] > 0) setBlock(...r.hit, 0); }
+        if (button === 0) {
+          if (r.hit[1] > 0) {
+            const d = BLOCKS[get(...r.hit)], at = new THREE.Vector3(r.hit[0] + .5, r.hit[1] + .5, r.hit[2] + .5);
+            st.burst(at, d.all !== undefined ? d.all : d.top, 14, .16, 3.5); Sfx.play('dig');
+            setBlock(...r.hit, 0);
+          }
+        }
         else if (button === 2) {
           const [x, y, z] = r.prev;
           if (x < 0 || z < 0 || y < 0 || x >= SX || z >= SZ || y >= SY) return;
           const inMe = x + 1 > pl.x - HW && x < pl.x + HW && y + 1 > pl.y && y < pl.y + HH && z + 1 > pl.z - HW && z < pl.z + HW;
-          if (!inMe) setBlock(x, y, z, BAR[slot]);
+          if (!inMe) { setBlock(x, y, z, BAR[slot]); Sfx.play('place'); }
         }
       };
       let drag = null;
@@ -245,12 +257,19 @@ App.register({
           const up = (k.has(' ') ? 1 : 0) - (k.has('Shift') ? 1 : 0), my = up * sp * dt;
           if (!blocked(pl.x, pl.y + my, pl.z)) pl.y += my;
         } else {
-          if (k.has(' ') && pl.ground) { pl.vy = 7.6; pl.ground = false; }
+          if (k.has(' ') && pl.ground) { pl.vy = 7.6; pl.ground = false; Sfx.play('jump'); }
           pl.vy = Math.max(pl.vy - 22 * dt, -30);
           const my = pl.vy * dt;
-          if (blocked(pl.x, pl.y + my, pl.z)) { if (pl.vy < 0) pl.ground = true; pl.vy = 0; } else { pl.y += my; pl.ground = false; }
+          if (blocked(pl.x, pl.y + my, pl.z)) { if (pl.vy < -9) { Sfx.play('land'); st.shake(.12); } if (pl.vy < 0) pl.ground = true; pl.vy = 0; } else { pl.y += my; pl.ground = false; }
         }
-        camera.position.set(pl.x, pl.y + EYE, pl.z);
+        const moving = (fw || strafe) && (pl.ground || pl.fly);
+        if (moving) stride += dt * 10;
+        const bob = moving ? Math.sin(stride) * .05 : 0;
+        if (moving && !pl.fly && Math.sin(stride) * Math.sin(stride - dt * 10) < 0) Sfx.play('skid');
+        swing = Math.max(0, swing - dt * 5);
+        arm.rotation.x = -Math.sin(swing * Math.PI) * 1.1;
+        arm.position.y = -.36 + bob * .5;
+        camera.position.set(pl.x, pl.y + EYE + bob, pl.z);
         camera.rotation.set(pl.pitch, pl.yaw, 0, 'YXZ');
         const r = ray();
         sel.visible = !!r;

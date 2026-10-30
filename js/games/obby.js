@@ -74,7 +74,7 @@ App.register({
       const avatar = (shirt, pants) => { const g = Gfx.Models.avatar(shirt, pants); scene.add(g); return g; };
       const pl = { x: 0, y: 2, z: 0, vx: 0, vz: 0, vy: 0, ground: false, ride: null, cp: 0, face: 0, deaths: 0 };
       const body = avatar(0xff5d8f, 0x2d3a66);
-      let camYaw = 0, camPitch = .42, drag = null, time = 0, done = false, walk = 0;
+      let squash = 0, camYaw = 0, camPitch = .42, drag = null, time = 0, done = false, walk = 0;
       const others = {};
       ctx.on(canvas, 'pointerdown', e => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
       ctx.on(canvas, 'pointermove', e => {
@@ -100,6 +100,7 @@ App.register({
       }
       const respawn = () => {
         const c = checkpoints[pl.cp];
+        st.burst(body.position.clone().setY(pl.y + 1), 0xff7a1a, 26, .35, 12); st.shake(.9); st.flash('#ff5a1a'); Sfx.play('hurt');
         pl.x = c.x; pl.y = c.y; pl.z = c.z; pl.vy = 0; pl.deaths++;
       };
       const HW = .45, HH = 2.2;
@@ -120,7 +121,7 @@ App.register({
         let mx = -sin * fw + cos * strafe, mz = -cos * fw - sin * strafe;
         const l = Math.hypot(mx, mz);
         if (l) { mx /= l; mz /= l; pl.face = Math.atan2(-mx, -mz); walk += dt * 11; }
-        if (k.has(' ') && pl.ground) { pl.vy = 13.5; pl.ground = false; }
+        if (k.has(' ') && pl.ground) { pl.vy = 13.5; pl.ground = false; squash = -.5; Sfx.play('jump'); st.burst(body.position, 0xffffff, 6, .22, 5); }
         pl.vy = Math.max(pl.vy - 34 * dt, -50);
         if (pl.ride && pl.ground) pl.x += pl.ride.dx;
         pl.x += mx * 11 * dt; pl.z += mz * 11 * dt;
@@ -134,10 +135,17 @@ App.register({
           if (pl.y < topY && pl.y + HH > botY) {
             if (b.kill) { respawn(); break; }
             if (pl.vy <= 0 && prevY >= topY - .35) {
+              if (pl.vy < -12) { squash = .7; Sfx.play('land'); st.burst(new THREE.Vector3(pl.x, topY + .1, pl.z), 0xffffff, 8, .22, 5); st.shake(.2); }
               pl.y = topY; pl.vy = 0; pl.ground = true; pl.ride = b.swing ? b : null;
-              if (b.check) { const i = checkpoints.findIndex(c => Math.abs(c.z - b.z) < .01); if (i > pl.cp) pl.cp = i; }
+              if (b.check) { const i = checkpoints.findIndex(c => Math.abs(c.z - b.z) < .01); if (i > pl.cp) {
+                  pl.cp = i; Sfx.play('upgrade');
+                  const at = new THREE.Vector3(b.x, topY + 1, b.z);
+                  st.ring(at, 0x3fe0c5, 7); st.burst(at, 0x3fe0c5, 24, .25, 9);
+                }
+              }
               if (b.goal && !done) {
                 done = true;
+                for (const c of [0xffd23f, 0xff5d8f, 0x3fe0c5]) st.burst(body.position.clone().setY(pl.y + 3), c, 30, .3, 14);
                 const s = Math.round(time * 10) / 10, nb = ctx.score(s, true);
                 if (room) room.send({ t: 'win', s });
                 ctx.message('You finished!', `${s} seconds, ${pl.deaths} falls.${nb ? ' New best!' : ''}`, room ? [{ label: 'Back to menu', fn: ctx.restart }] : [{ label: 'New course', fn: () => play(null, Math.floor(Math.random() * 1e9)) }]);
@@ -153,7 +161,11 @@ App.register({
         body.position.set(pl.x, pl.y, pl.z); body.rotation.y = pl.face;
         const sw = l ? Math.sin(walk) * .7 : 0, u = body.userData;
         u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armL.rotation.x = -sw; u.armR.rotation.x = sw;
-        const dist = 12;
+        if (!pl.ground) { u.armL.rotation.x = u.armR.rotation.x = 2.6; u.legL.rotation.x = .5; u.legR.rotation.x = -.5; }
+        squash *= Math.exp(-12 * dt);
+        body.scale.set(1 + squash * .3, 1 - squash * .4, 1 + squash * .3);
+
+      const dist = 12;
         camera.position.set(pl.x + sin * Math.cos(camPitch) * dist, pl.y + 1.5 + Math.sin(camPitch) * dist, pl.z + cos * Math.cos(camPitch) * dist);
         camera.lookAt(pl.x, pl.y + 1.5, pl.z);
         tip.textContent = `⏱ ${time.toFixed(1)}s · 🚩 Checkpoint ${pl.cp + 1}/${checkpoints.length} · 💀 ${pl.deaths}`;

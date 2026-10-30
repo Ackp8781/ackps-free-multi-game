@@ -157,7 +157,9 @@ App.register({
       const bots = room ? [] : [.8, .88, .96].map((f, i) => ({ name: ['Rusty', 'Blaze', 'Viper'][i], f, off: (i - 1) * 30, prog: -(i + 1) * 1.2, x: 0, y: 0, a: a0, m: spawnCar([0x9aa0a6, 0xff9f43, 0x7bed9f][i], ['Rusty', 'Blaze', 'Viper'][i]) }));
       const others = {};
       const finished = [];
-      let time = -3, done = false, camA = a0;
+      let time = -3, done = false, camA = a0, lap = 0, count = 4;
+      const engine = Sfx.engine();
+      ctx.add(engine.stop);
       const total = LAPS * N;
       if (room) {
         ctx.add(room.onMessage((d, from) => {
@@ -176,6 +178,7 @@ App.register({
       };
       function finish() {
         done = true;
+        for (const c of [0xffd23f, 0xff5d8f, 0x3fe0c5]) st.burst(mine.position.clone().setY(30), c, 30, 6, 170);
         if (room) { finished.push(room.me); room.send({ t: 'fin' }); }
         const place = room ? finished.length : 1 + bots.filter(b => b.prog >= total).length;
         const coins = REWARD[Math.min(place - 1, 3)];
@@ -187,7 +190,7 @@ App.register({
       ctx.loop(dt => {
         time += dt;
         const go = time >= 0 && !done, k = ctx.keys;
-        let nitroOn = false, steer = 0;
+        let nitroOn = false, steer = 0, offRoad = false;
         if (go) {
           let best = Infinity, bi = me.idx;
           for (let o = -14; o <= 14; o++) {
@@ -198,7 +201,10 @@ App.register({
           if (delta > N / 2) delta -= N;
           if (delta < -N / 2) delta += N;
           me.idx = bi; me.prog += delta;
+          const nowLap = Math.floor(me.prog / N);
+          if (nowLap > lap) { lap = nowLap; if (lap < LAPS) { Sfx.play('upgrade'); st.flash('#ffffff'); } }
           const onRoad = best < ROAD;
+          offRoad = !onRoad;
           const up = k.has('ArrowUp') || k.has('w'), dn = k.has('ArrowDown') || k.has('s');
           const lf = k.has('ArrowLeft') || k.has('a'), rt = k.has('ArrowRight') || k.has('d');
           nitroOn = k.has(' ') && me.nitro > 0 && up;
@@ -233,6 +239,12 @@ App.register({
         mine.userData.wheels.slice(0, 2).forEach(w => { w.rotation.y = -steer * .4; });
         if (Math.abs(me.v) > 5) spin(mine);
         flame.visible = nitroOn;
+        const fast = Math.abs(me.v);
+        const tail = () => new THREE.Vector3(me.x - Math.cos(me.a) * 20, 5, me.y - Math.sin(me.a) * 20);
+        if (go && offRoad && fast > 60) { if (Math.random() < .5) st.burst(tail(), 0xa5835a, 2, 6, 45); st.shake(fast * .006); }
+        if (go && !offRoad && steer && fast > 300) { if (Math.random() < .5) st.burst(tail(), 0xcfcfcf, 1, 7, 28); Sfx.play('skid'); }
+        if (nitroOn) { st.shake(1.5); Sfx.play('nitro'); st.burst(tail(), 0xffa02e, 1, 5, 60); }
+        engine.set(55 + fast * .32, done || time < -3 ? 0 : .035 + fast * .00007);
         if (nitroOn) {
           flame.position.set(me.x - Math.cos(me.a) * 34, 9, me.y - Math.sin(me.a) * 34);
           flame.rotation.set(0, -me.a, Math.PI / 2);
@@ -252,6 +264,8 @@ App.register({
         hud.replaceChildren(el('span', {}, 'Lap ', el('b', {}, `${clamp(Math.floor(me.prog / N) + 1, 1, LAPS)}/${LAPS}`)), el('span', {}, 'Position ', el('b', {}, `${pos}/${all.length}`)),
           el('span', {}, 'Speed ', el('b', {}, Math.abs(Math.round(me.v / 3)))), el('span', {}, '🔥 ', el('b', {}, Math.max(0, Math.round(me.nitro)))), el('span', {}, '⏱ ', el('b', {}, Math.max(0, time).toFixed(1))));
         big.textContent = time < 0 ? Math.ceil(-time) : time < .8 ? 'GO!' : '';
+        const shown = time < 0 ? Math.ceil(-time) : 0;
+        if (shown < count) { count = shown; Sfx.play(shown ? 'beep' : 'go'); }
         st.render(dt);
       });
     }

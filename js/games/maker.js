@@ -152,7 +152,7 @@ App.register({
       let coins = 0, deaths = 0, over = false, time = 0, walk = 0;
       const total = tiles.filter(v => v === 4).length;
       const GRAV = game.grav * 130, JUMP = Math.sqrt(2 * GRAV * (game.jump * 12));
-      const respawn = () => { pl.x = home.x; pl.y = home.y; pl.vx = pl.vy = 0; deaths++; };
+      const respawn = () => { Sfx.play('hurt'); st.shake(6); st.burst(hero.position.clone().setY(hero.position.y + 12), 0xff5d8f, 16, 4, 110); pl.x = home.x; pl.y = home.y; pl.vx = pl.vy = 0; deaths++; };
       const overlaps = (ax, ay, aw, ah) => {
         const hits = [];
         for (let y = Math.floor(ay / T); y <= Math.floor((ay + ah - 1) / T); y++) for (let x = Math.floor(ax / T); x <= Math.floor((ax + aw - 1) / T); x++) hits.push([x, y, at(x * T, y * T)]);
@@ -164,7 +164,7 @@ App.register({
         const k = ctx.keys;
         const dir = (k.has('ArrowRight') || k.has('d') ? 1 : 0) - (k.has('ArrowLeft') || k.has('a') ? 1 : 0);
         pl.vx = dir * 190;
-        if ((k.has(' ') || k.has('ArrowUp') || k.has('w')) && pl.ground) { pl.vy = -JUMP; pl.ground = false; }
+        if ((k.has(' ') || k.has('ArrowUp') || k.has('w')) && pl.ground) { pl.vy = -JUMP; pl.ground = false; Sfx.play('jump'); }
         if (k.has('r')) { respawn(); deaths--; }
         pl.vy = Math.min(pl.vy + GRAV * dt, 650);
         pl.x += pl.vx * dt;
@@ -180,9 +180,10 @@ App.register({
           if (v === 4) {
             const i = y * COLS + x, m = tileObj.get(i);
             tiles[i] = 0; coins++;
-            if (m) { st.burst(m.position, 0xffd23f, 10, 3, 80); s.remove(m); }
+            Sfx.play('coin');
+            if (m) { st.burst(m.position, 0xffd23f, 10, 3, 80); st.ring(m.position, 0xffd23f, 22); s.remove(m); }
           }
-          if (v === 8 && pl.vy >= 0) { pl.vy = -JUMP * 1.5; }
+          if (v === 8 && pl.vy >= 0) { pl.vy = -JUMP * 1.5; Sfx.play('spring'); }
           if (v === 5) {
             over = true;
             ctx.score(1);
@@ -195,7 +196,7 @@ App.register({
           const ahead = e.dir > 0 ? e.x + 20 : e.x;
           if (SOLID(at(ahead, e.y + 10)) || !SOLID(at(ahead, e.y + 24))) e.dir *= -1;
           if (pl.x < e.x + 20 && pl.x + pl.w > e.x && pl.y < e.y + 20 && pl.y + pl.h > e.y) {
-            if (pl.vy > 0 && pl.y + pl.h < e.y + 12) { e.alive = false; pl.vy = -JUMP * .6; st.burst(e.m.position, 0xa55eea, 14, 3, 90); s.remove(e.m); } else respawn();
+            if (pl.vy > 0 && pl.y + pl.h < e.y + 12) { e.alive = false; pl.vy = -JUMP * .6; st.burst(e.m.position, 0xa55eea, 14, 3, 90); st.shake(3); Sfx.play('pop'); s.remove(e.m); } else respawn();
           }
           e.m.position.set(e.x + 10, -(e.y + 20), 0);
           e.m.rotation.y = e.dir > 0 ? 0 : Math.PI;
