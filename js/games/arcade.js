@@ -137,88 +137,150 @@ App.register({
 
 App.register({
   id: 'flappy', name: 'Flappy Wings', icon: '🐤', online: true,
-  desc: 'Flap a 3D bird through the pipes while friends fly beside you.',
+  desc: 'Tap to flap through the pipes in this one-button 2D pixel classic.',
   mount(ctx) {
     ctx.lobby({ intro: 'Last bird flying wins.', start: play });
-    async function play(room, seed) {
+    function play(room, seed) {
       ctx.clear();
-      await loadThree();
-      if (!ctx.stage.isConnected) return;
-      const W = 480, H = 640, GAP = 165, SPACE = 230, SPEED = 170;
-      const st = Gfx.stage(ctx, { ratio: W / H, fov: 48, top: '#2f9df0', bottom: '#d5f4ff', shadow: 500, center: [W / 2, 200, 0], sunDir: [.4, .9, .7] });
-      const s = st.scene, canvas = st.canvas;
-      st.camera.position.set(W / 2, H / 2 + 20, 740);
-      st.camera.lookAt(W / 2, H / 2, 0);
-      const scoreTag = el('div', { class: 'tag3d', style: 'left:50%;transform:translateX(-50%);font:28px var(--pix);top:20px' }, '0');
-      st.wrap.append(scoreTag);
+      // The game runs on a small pixel grid that the browser scales up without smoothing.
+      const W = 288, H = 512, FLOOR = 400, GAP = 100, SPACE = 156, PIPE = 52, SPEED = 120, GRAVITY = 1320, FLAP = -320, BIRD_X = 70;
+      const c = ctx.canvas(W, H), g = c.getContext('2d');
+      c.style.cssText = 'height:min(calc(100vh - 170px),160vw);aspect-ratio:9/16;image-rendering:pixelated;cursor:pointer';
       ctx.help('Space, up arrow, click or tap to flap.');
-      const gapAt = i => 110 + rng(seed + i * 7919)() * (H - 320);
-      let y = H / 2, v = 0, dist = 0, alive = true, begun = !!room, score = 0, flapT = 0;
+      const SOUND = {
+        wing: { t: [[340, 620, .08, 'triangle', .14]], n: [[.06, .05, 2400]] },
+        point: { t: [[880, 880, .07, 'square', .07], [1320, 1320, .16, 'square', .06, .07]] },
+        hit: { n: [[.1, .3, 1800]], t: [[220, 70, .12, 'square', .14]] },
+        die: { t: [[560, 110, .42, 'triangle', .16, .08]] },
+        swoosh: { n: [[.2, .08, 3400]] },
+      };
+      const COLORS = { K: '#3a2333', B: '#f0668a', D: '#c9406a', L: '#ffd9c2', W: '#ffffff', E: '#3a2333', O: '#7fd13b', C: '#ffcf3f' };
+      const BODY = ['.......CC........', '......CCKKKKK....', '....KKKBBBKWWK...', '...KBBBBBKWWEWK..', '..KBBBBBBKWWEWK..', '.KBBBBBBBBKWWWKKK', '.KBBBBBBBBBKKOOOK', '.KLBBBBBBBKOOOOKK', '..KLLBBBBBBKKKK..', '...KLLLLLBBBK....', '....KKLLLLKK.....', '......KKKK.......'];
+      const WINGS = [['KKKK', 'KBBBK', 'KDDK'], ['KKKKK', 'KBBBK', '.KKK'], ['KDDK', 'KBBBK', 'KKKK']];
+      const sprite = (rows, w, h, x = 0, y = 0, base = null) => {
+        const s = el('canvas', { width: w, height: h }), q = s.getContext('2d');
+        if (base) q.drawImage(base, 0, 0);
+        rows.forEach((r, j) => [...r].forEach((p, i) => { if (COLORS[p]) { q.fillStyle = COLORS[p]; q.fillRect(x + i, y + j, 1, 1); } }));
+        return s;
+      };
+      const body = sprite(BODY, 17, 12), frames = WINGS.map(w => sprite(w, 17, 12, 2, 4, body));
+      const night = rng(seed)() < .35;
+      const gapAt = i => 50 + rng(seed + i * 7919)() * (FLOOR - GAP - 100);
       const others = {};
-      const ground = Gfx.box(4000, 50, 500, Gfx.mat(0x6ccf5b), W / 2, 25, 0);
-      const dirt = Gfx.box(4000, 16, 500, Gfx.mat(0x9b6f3f), W / 2, -8, 0);
-      s.add(ground, dirt);
-      const hills = [0, 1, 2, 3, 4, 5, 6, 7].map(i => { const h = Gfx.ball(150, Gfx.mat(i % 2 ? 0x7fd486 : 0x69c575), 0, 40, -420, 1.4, .8, .6); h.castShadow = false; s.add(h); return h; });
-      const clouds = [0, 1, 2, 3, 4].map(i => { const c = Gfx.Models.cloud(); c.scale.setScalar(38 + i * 6); c.position.set(i * 170, 460 + (i % 3) * 70, -280); s.add(c); return c; });
-      const green = Gfx.mat(0x3fb54a, { roughness: .35 }), lip = Gfx.mat(0x2d9539, { roughness: .35 });
-      const pipes = Array.from({ length: 6 }, () => {
-        const g = new THREE.Group(), L = 700;
-        const up = Gfx.cyl(31, 31, L, green, 0, L / 2 + GAP, 0), a = Gfx.cyl(36, 36, 24, lip, 0, GAP + 12, 0);
-        const dn = Gfx.cyl(31, 31, L, green, 0, -L / 2, 0), b = Gfx.cyl(36, 36, 24, lip, 0, -12, 0);
-        g.add(up, a, dn, b); s.add(g);
-        return g;
-      });
-      const me = Gfx.Models.bird(); me.scale.setScalar(16); s.add(me);
-      const flap = () => { if (alive) { begun = true; v = -400; flapT = .18; Sfx.play('flap'); st.burst(me.position, 0xfff3c4, 3, 3, 50); } };
-      ctx.on(canvas, 'pointerdown', e => { e.preventDefault(); flap(); });
+      let state = room ? 'play' : 'ready', y = 230, v = 0, dist = 0, score = 0, t = 0, deadT = 0, flash = 0, shake = 0, best = 0, panelY = H, medal = null, fallen = false;
+      const flap = () => {
+        if (state === 'ready') state = 'play';
+        if (state === 'play') { v = FLAP; Sfx.fx(SOUND.wing); }
+        else if (state === 'dead' && deadT > 1) {
+          Sfx.fx(SOUND.swoosh);
+          if (room) ctx.restart(); else play(null, Math.floor(Math.random() * 1e9));
+        }
+      };
+      ctx.on(c, 'pointerdown', e => { e.preventDefault(); flap(); });
       ctx.on(window, 'keydown', e => { if ((e.key === ' ' || e.key === 'ArrowUp') && !e.repeat) flap(); });
       if (room) {
         ctx.add(room.onMessage((d, from) => {
-          if (d.t === 'b') {
-            const o = others[from] || (others[from] = (() => {
-              const b = Gfx.Models.bird(0x8fd6ff); b.scale.setScalar(15); Gfx.ghost(b, .55); s.add(b);
-              const l = Gfx.label((room.players.find(p => p.id === from) || {}).name || 'Player'); l.position.set(0, 2.2, 0); b.add(l);
-              return { b };
-            })());
-            o.b.position.set(110, H - d.y, -30); o.b.visible = d.alive;
-          }
-          if (d.t === 'left' && others[from]) { s.remove(others[from].b); delete others[from]; }
+          if (d.t === 'b') others[from] = { y: d.y, alive: d.alive, name: (room.players.find(p => p.id === from) || {}).name || 'Player' };
+          if (d.t === 'left') delete others[from];
         }));
-        ctx.every(66, () => room.send({ t: 'b', y, alive, score }));
+        ctx.every(66, () => room.send({ t: 'b', y, alive: state === 'play', score }));
       }
       const die = () => {
-        alive = false;
-        st.burst(me.position, 0xffd23f, 22, 7, 180); st.shake(18); st.flash('#ffffff'); Sfx.play('hit');
-        const nb = ctx.score(score);
-        if (room) room.send({ t: 'b', y, alive, score });
-        ctx.message('Game over', `Score ${score}.${nb ? ' New best!' : ''}`, room
-          ? [{ label: 'Back to menu', fn: ctx.restart }]
-          : [{ label: 'Play again', fn: () => play(null, Math.floor(Math.random() * 1e9)) }]);
+        state = 'dead';
+        flash = 1; shake = 6; v = Math.max(v, 0);
+        Sfx.fx(SOUND.hit); Sfx.fx(SOUND.die);
+        ctx.score(score);
+        best = ctx.best() || score;
+        medal = score >= 40 ? '#e8f2ff' : score >= 30 ? '#ffd23f' : score >= 20 ? '#c9ced6' : score >= 10 ? '#c9803f' : null;
+        if (room) room.send({ t: 'b', y, alive: false, score });
       };
-      ctx.loop((dt, now) => {
-        if (begun && alive) {
-          v += 1250 * dt; y += v * dt; dist += SPEED * dt;
-          const was = score;
-          score = dist < 390 ? 0 : Math.floor((dist - 390) / SPACE) + 1;
-          if (score > was) { Sfx.play('ding'); st.ring(me.position, 0xffffff, 40); st.burst(me.position, 0xffd23f, 6, 4, 90); }
-          if (y > H - 50 || y < 0) die();
-        } else if (!alive && y < H - 62) { v += 1250 * dt; y = Math.min(H - 62, y + v * dt); }
-        const first = Math.max(0, Math.floor((dist - 110) / SPACE) - 2);
-        pipes.forEach((p, n) => {
-          const i = first + n, x = 500 + i * SPACE - dist, gy = gapAt(i);
-          p.position.set(x + 31, H - gy - GAP, 0);
-          if (alive && 110 + 15 > x && 110 - 15 < x + 62 && (y - 12 < gy || y + 12 > gy + GAP)) die();
-        });
-        hills.forEach((h, i) => { h.position.x = ((i * 300 - dist * .25) % 2400 + 2400) % 2400 - 700; });
-        clouds.forEach((c, i) => { c.position.x = ((i * 280 - dist * .12 - now * .004) % 1500 + 1500) % 1500 - 500; });
-        me.position.set(110, H - y + (begun ? 0 : Math.sin(now * .004) * 12), 0);
-        me.rotation.z = alive ? clamp(-v / 600, -1, .5) : me.rotation.z - dt * 7;
-        me.scale.set(16 * (1 - flapT * .9), 16 * (1 + flapT * 1.2), 16);
-        flapT = Math.max(0, flapT - dt);
-        const wing = (flapT > 0 ? Math.sin(flapT * 50) : Math.sin(now * .012) * .4) * .8;
-        me.userData.wing.rotation.x = -wing; me.userData.wing2.rotation.x = wing;
-        scoreTag.textContent = begun ? score : 'TAP TO START';
-        st.render(dt);
+      const step = dt => {
+        t += dt;
+        if (state === 'play') {
+          dist += SPEED * dt;
+          v = Math.min(v + GRAVITY * dt, 480); y += v * dt;
+          const s = dist < 296 ? 0 : Math.floor((dist - 296) / SPACE) + 1;
+          if (s > score) { score = s; Sfx.fx(SOUND.point); }
+          if (y + 9 >= FLOOR) { y = FLOOR - 9; die(); return; }
+          if (y < -30) y = -30;
+          const first = Math.max(0, Math.floor((dist - 340) / SPACE) - 1);
+          for (let i = first; i < first + 4; i++) {
+            const x = 340 + i * SPACE - dist, top = gapAt(i);
+            if (BIRD_X + 10 > x && BIRD_X - 10 < x + PIPE && (y - 8 < top || y + 8 > top + GAP)) { die(); return; }
+          }
+        } else if (state === 'dead') {
+          deadT += dt;
+          if (!fallen) { v = Math.min(v + GRAVITY * dt, 480); y += v * dt; if (y + 9 >= FLOOR) { y = FLOOR - 9; fallen = true; } }
+          if (deadT > .6) panelY += (150 - panelY) * Math.min(1, dt * 9);
+        }
+      };
+      const text = (s, x, yy, size = 16, color = '#fff', align = 'center') => {
+        g.font = `${size}px 'Press Start 2P',monospace`; g.textAlign = align;
+        g.fillStyle = '#3a2333'; g.fillText(s, x + 2, yy + 2);
+        g.fillStyle = color; g.fillText(s, x, yy);
+      };
+      const rect = (col, x, yy, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(yy), w, h); };
+      const pipe = (x, top) => {
+        const piece = (yy, h, capY) => {
+          rect('#3a2333', x + 2, yy, PIPE - 4, h);
+          rect('#58b368', x + 3, yy, PIPE - 6, h); rect('#8fdc8f', x + 7, yy, 6, h); rect('#37894b', x + PIPE - 13, yy, 10, h);
+          rect('#3a2333', x, capY, PIPE, 24);
+          rect('#58b368', x + 1, capY + 1, PIPE - 2, 22); rect('#8fdc8f', x + 5, capY + 1, 6, 22); rect('#37894b', x + PIPE - 11, capY + 1, 10, 22);
+        };
+        piece(0, top, top - 24);
+        piece(top + GAP, FLOOR - top - GAP, top + GAP);
+      };
+      const bird = (yy, angle, frame, alpha = 1) => {
+        g.save(); g.globalAlpha = alpha; g.translate(BIRD_X, Math.round(yy)); g.rotate(angle); g.scale(1.4, 1.4);
+        g.drawImage(frames[frame], -8.5, -6); g.restore();
+      };
+      const draw = () => {
+        g.imageSmoothingEnabled = false;
+        g.save();
+        if (shake > .2) g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+        const sky = g.createLinearGradient(0, 0, 0, FLOOR);
+        sky.addColorStop(0, night ? '#14304f' : '#6fc9dc'); sky.addColorStop(1, night ? '#2f6a7f' : '#c9eee4');
+        g.fillStyle = sky; g.fillRect(-8, -8, W + 16, H);
+        const scroll = (speed, width) => -((dist * speed) % width);
+        // Clouds, far hills and near treetops drift at different speeds.
+        for (let i = 0; i < 6; i++) { const x = scroll(.1, 96) + i * 96; g.fillStyle = night ? '#2c5674' : '#eefaf6'; for (const [a, b, w, h] of [[0, 300, 40, 24], [20, 288, 44, 36], [52, 304, 36, 20]]) g.fillRect(x + a, b, w, h); }
+        for (let i = 0; i < 7; i++) { const x = scroll(.25, 64) + i * 64; g.fillStyle = night ? '#1f4a57' : '#9edcb0'; g.fillRect(x, 340, 64, 60); g.fillRect(x + 12, 326, 32, 14); g.fillRect(x + 20, 318, 14, 8); }
+        for (let i = 0; i < 12; i++) { const x = scroll(.5, 32) + i * 32; g.fillStyle = night ? '#173a44' : '#74c68c'; g.fillRect(x, 372, 32, 28); g.fillRect(x + 6, 362, 20, 10); }
+        const first = Math.max(0, Math.floor((dist - 340) / SPACE) - 1);
+        for (let i = first; i < first + 4; i++) pipe(Math.round(340 + i * SPACE - dist), gapAt(i));
+        // The striped ground keeps moving with the pipes.
+        rect('#3a2333', 0, FLOOR, W, 2); rect('#a4e05a', 0, FLOOR + 2, W, 12); rect('#e3d49a', 0, FLOOR + 14, W, H - FLOOR);
+        for (let x = -((state === 'dead' ? dist : state === 'ready' ? t * SPEED : dist) % 20) - 20; x < W + 20; x += 20) { g.fillStyle = '#6fb53d'; g.beginPath(); g.moveTo(x, FLOOR + 14); g.lineTo(x + 10, FLOOR + 14); g.lineTo(x + 16, FLOOR + 2); g.lineTo(x + 6, FLOOR + 2); g.fill(); }
+        rect('#c9b87c', 0, FLOOR + 14, W, 2);
+        for (const id in others) if (others[id].alive) bird(others[id].y, 0, Math.floor(t * 10) % 3, .5);
+        const hover = state === 'ready' ? Math.sin(t * 7) * 5 : 0;
+        const angle = state === 'ready' ? 0 : clamp(v / 480 * 2.4 - .5, -.45, 1.57);
+        bird(y + hover, angle, state === 'dead' || v > 300 ? 1 : Math.floor(t * 12) % 3);
+        if (state !== 'dead' && state !== 'ready') text(String(score), W / 2, 70, 24);
+        if (state === 'ready') {
+          text('GET READY', W / 2, 130, 20, '#ffcf3f');
+          text('TAP TO FLAP', W / 2, 310, 12);
+        }
+        if (state === 'dead') {
+          if (deadT > .35) text('GAME OVER', W / 2, 120, 22, '#ff8a5c');
+          const py = panelY;
+          rect('#3a2333', 28, py, W - 56, 118); rect('#f4e6b8', 30, py + 2, W - 60, 114); rect('#d9c58a', 34, py + 6, W - 68, 106); rect('#f4e6b8', 36, py + 8, W - 72, 102);
+          text('MEDAL', 76, py + 28, 10, '#c9803f'); text('SCORE', 244, py + 28, 10, '#c9803f', 'right'); text('BEST', 244, py + 74, 10, '#c9803f', 'right');
+          text(String(score), 244, py + 50, 14, '#fff', 'right'); text(String(best), 244, py + 96, 14, '#fff', 'right');
+          g.fillStyle = medal || '#d9c58a'; g.beginPath(); g.arc(76, py + 66, 22, 0, 7); g.fill();
+          if (medal) { g.fillStyle = '#3a2333'; g.beginPath(); g.moveTo(76, py + 52); g.lineTo(80, py + 62); g.lineTo(90, py + 63); g.lineTo(82, py + 70); g.lineTo(85, py + 80); g.lineTo(76, py + 74); g.lineTo(67, py + 80); g.lineTo(70, py + 70); g.lineTo(62, py + 63); g.lineTo(72, py + 62); g.fill(); }
+          if (deadT > 1) text(room ? 'TAP FOR MENU' : 'TAP TO PLAY', W / 2, py + 150, 12);
+        }
+        g.restore();
+        if (flash > 0) { g.fillStyle = `rgba(255,255,255,${flash})`; g.fillRect(0, 0, W, H); }
+      };
+      let acc = 0;
+      ctx.loop(dt => {
+        acc += dt;
+        // A fixed step keeps every jump the same height at any frame rate.
+        while (acc >= 1 / 120) { step(1 / 120); acc -= 1 / 120; }
+        flash = Math.max(0, flash - dt * 4); shake *= Math.exp(-dt * 9);
+        draw();
       });
     }
   },
