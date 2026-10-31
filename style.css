@@ -155,3 +155,9 @@ body{background-attachment:fixed}
 .loader i{width:44px;height:44px;border-radius:50%;border:5px solid var(--line);border-top-color:var(--acc);animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.logo,.card .ico,.heroart span,.lobbyicon,.roomcode,.shop button:not(:disabled){animation:none}.confetti{display:none}.card::after{display:none}}
+.buffs{min-height:24px;margin:0;font-weight:800;color:var(--acc)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:4px;width:100%;max-width:980px}
+.tile{display:grid;place-items:center;height:38px;border-radius:8px;background:var(--solid);border:2px solid var(--line);color:var(--dim);font-weight:800;opacity:.55}
+.tile.on{opacity:1;border-color:var(--acc)}
+.goldgem{position:fixed;z-index:30;width:64px;height:64px;font-size:44px;line-height:1;padding:0;background:radial-gradient(circle,#ffd23fcc,#ffd23f00 70%);border:0;cursor:pointer;filter:sepia(1) saturate(6) hue-rotate(-5deg) brightness(1.2);animation:bob 1.2s ease-in-out infinite;touch-action:manipulation}
+@media (prefers-reduced-motion:reduce){.goldgem{animation:none}}

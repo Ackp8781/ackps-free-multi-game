@@ -19,7 +19,7 @@ const rng = seed => () => {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmt = n => {
   if (n < 1e4) return String(Math.floor(n));
-  const u = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx'];
+  const u = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 'UDc', 'DDc', 'TDc'];
   let i = -1;
   while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
   return n.toFixed(2) + u[i];
