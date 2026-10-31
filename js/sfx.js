@@ -47,16 +47,16 @@ const Sfx = (() => {
     if (ac.state === 'suspended') ac.resume();
     return ac;
   };
-  const tone = ([a, b, dur, type, vol, delay = 0]) => {
+  const tone = ([a, b, dur, type, vol, delay = 0], k = 1, rate = 1) => {
     const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
-    o.type = type; o.frequency.setValueAtTime(a, t); o.frequency.exponentialRampToValueAtTime(Math.max(b, 1), t + dur);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.type = type; o.frequency.setValueAtTime(a * rate, t); o.frequency.exponentialRampToValueAtTime(Math.max(b * rate, 1), t + dur);
+    g.gain.setValueAtTime(Math.max(vol * k, .0011), t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
     o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .02);
   };
-  const noise = ([dur, vol, hz, delay = 0]) => {
+  const noise = ([dur, vol, hz, delay = 0], k = 1, rate = 1) => {
     const t = ac.currentTime + delay, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    s.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = hz;
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    s.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = hz * rate;
+    g.gain.setValueAtTime(Math.max(vol * k, .0011), t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
     s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random() * .5); s.stop(t + dur + .02);
   };
   return {
@@ -65,9 +65,17 @@ const Sfx = (() => {
       if (now - (last[name] || 0) < 45 || !audio()) return;
       last[name] = now;
       const s = BANK[name];
-      if (s.t) s.t.forEach(tone);
-      if (s.n) s.n.forEach(noise);
+      if (s.t) s.t.forEach(x => tone(x));
+      if (s.n) s.n.forEach(x => noise(x));
     },
+    // Plays a sound definition from a game's own bank, scaled in volume and pitch.
+    fx(def, vol = 1, rate = 1) {
+      if (!audio()) return;
+      if (def.t) def.t.forEach(x => tone(x, vol, rate));
+      if (def.n) def.n.forEach(x => noise(x, vol, rate));
+    },
+    // The raw audio graph, for games that build their own long-running sounds.
+    graph: () => (audio() ? { ac, master, noiseBuf } : null),
     // A continuous car engine; set(hz, volume) follows the speed.
     engine() {
       if (!audio()) return { set() {}, stop() {} };
