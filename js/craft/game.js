@@ -1243,12 +1243,14 @@ const CraftGame = (() => {
     G.openRoom = async () => {
       if (G.net) return G.net.room.code;
       const room = await Net.host('craft', ctx.user.name);
+      window.__room = room;
       G.net = installNet(room);
       room.onClose(() => { G.net = null; });
       return room.code;
     };
     G.joinRoom = async code => {
       const room = await Net.join('craft', code, ctx.user.name), diffs = new Map();
+      window.__room = room;
       G.panorama = null;
       if (G.W) stopWorld();
       G.net = installNet(room, diffs);
@@ -1566,6 +1568,14 @@ const CraftGame = (() => {
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.__craft = G;
     panorama();
     G.ui.title();
+    // Joining from a friend's invite skips straight into their world.
+    let pend = null;
+    try { pend = JSON.parse(sessionStorage.getItem('amg.join') || 'null'); } catch (e) {}
+    if (pend && pend.game === 'craft') {
+      sessionStorage.removeItem('amg.join');
+      G.ui.loading('Joining your friend');
+      G.joinRoom(pend.code).catch(e => { G.toTitle(); G.ui.message('Could not join', e.message); });
+    }
     return G;
   }
   return { start, VERSION, RULES };

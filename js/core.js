@@ -104,40 +104,102 @@ const App = (() => {
 
   function auth(mode = 'login') {
     const name = el('input', { placeholder: 'Username', autocomplete: 'username', maxLength: 20, required: true, 'aria-label': 'Username' });
-    const pw = el('input', { type: 'password', placeholder: 'Password', minLength: 4, required: true, 'aria-label': 'Password', autocomplete: mode === 'login' ? 'current-password' : 'new-password' });
+    const pw = el('input', { type: 'password', placeholder: 'Password', minLength: 6, required: true, 'aria-label': 'Password', autocomplete: mode === 'login' ? 'current-password' : 'new-password' });
     const err = el('p', { class: 'err', role: 'alert' });
+    const go = el('button', { class: 'btn' }, mode === 'login' ? 'Log in' : 'Create account');
     const submit = async e => {
       e.preventDefault();
-      const n = name.value.trim(), key = n.toLowerCase(), users = Store.get('users', {});
+      const n = name.value.trim();
       if (!/^[\w .-]{2,20}$/.test(n)) { err.textContent = 'Use 2-20 letters, numbers, spaces, dots or dashes.'; return; }
-      if (mode === 'signup') {
-        if (users[key]) { err.textContent = 'That username is taken on this device.'; return; }
-        const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
-        users[key] = { name: n, salt, hash: await hashPw(pw.value, salt), created: Date.now() };
-        Store.set('users', users);
-      } else {
-        const u = users[key];
-        if (!u || await hashPw(pw.value, u.salt) !== u.hash) { err.textContent = 'Wrong username or password.'; return; }
-      }
-      Store.set('session', key);
-      route();
+      go.disabled = true; err.textContent = mode === 'login' ? 'Logging in…' : 'Creating account…';
+      try {
+        await Cloud.start();
+        if (mode === 'signup') await Cloud.signUp(n, pw.value); else await Cloud.logIn(n, pw.value);
+        route();
+      } catch (x) { err.textContent = x.message; go.disabled = false; }
     };
     show(el('div', { class: 'center' }, el('div', { class: 'box' },
       el('div', { class: 'logo' }, "Ackp's Free Multi Game"),
       el('div', { class: 'tabs' },
         el('button', { class: 'btn' + (mode === 'login' ? '' : ' alt'), onclick: () => auth('login') }, 'Log in'),
         el('button', { class: 'btn' + (mode === 'signup' ? '' : ' alt'), onclick: () => auth('signup') }, 'Create account')),
-      el('form', { onsubmit: submit }, name, pw, err, el('button', { class: 'btn' }, mode === 'login' ? 'Log in' : 'Create account')),
-      el('p', { class: 'note' }, 'Accounts and saves are stored in this browser only.'))));
+      el('form', { onsubmit: submit }, name, pw, err, go),
+      el('p', { class: 'note' }, mode === 'signup' ? 'Your account works on any device. Game saves stay in the browser you play on.' : 'Accounts made before the online update need to be created again.'))));
     name.focus();
+  }
+
+  // Friends: requests, who is online and what they play, invites to rooms.
+  let social = null, socialOff = null, panelOpen = false;
+  const badge = el('span', { class: 'badge' });
+  const panel = el('aside', { class: 'friends', 'aria-label': 'Friends' });
+  const seenInvites = new Set();
+  const gameName = id => (games.find(x => x.id === id) || { name: id }).name;
+  const joinRoom = (game, code) => {
+    try { sessionStorage.setItem('amg.join', JSON.stringify({ game, code })); } catch (e) {}
+    panelOpen = false; panel.classList.remove('open');
+    if (location.hash === '#/play/' + game) route(); else location.hash = '#/play/' + game;
+  };
+  function watchSocial() {
+    if (socialOff) socialOff();
+    socialOff = Cloud.watch(st => {
+      social = st;
+      const reqs = Object.keys(st.requests).length, invs = Object.keys(st.invites).length;
+      badge.textContent = reqs + invs ? String(reqs + invs) : '';
+      for (const id in st.invites) if (!seenInvites.has(id)) {
+        seenInvites.add(id);
+        const v = st.invites[id];
+        if (Date.now() - (v.at || 0) > 600000) { Cloud.clearInvite(id); continue; }
+        Sfx.play('coin');
+        toast(`${v.name} invited you to ${gameName(v.game)}. Open Friends to join.`);
+      }
+      drawPanel();
+    });
+  }
+  function drawPanel() {
+    if (!panelOpen || !social) return;
+    const st = social;
+    const results = el('div', { class: 'stack' });
+    const search = el('input', { type: 'search', placeholder: 'Find players by username', 'aria-label': 'Find players' });
+    const find = el('form', { class: 'row', style: 'flex-wrap:nowrap', onsubmit: async e => {
+      e.preventDefault();
+      results.replaceChildren(el('p', { class: 'note' }, 'Searching…'));
+      const found = await Cloud.findPlayers(search.value);
+      results.replaceChildren(...found.map(p => el('div', { class: 'frow' }, el('span', {}, '👤 ' + p.name),
+        st.friends[p.uid] ? el('span', { class: 'note', style: 'margin:0' }, 'Friend') : el('button', { class: 'btn small', onclick: async ev => { ev.target.disabled = true; await Cloud.request(p.uid); ev.target.textContent = 'Sent'; } }, 'Add'))));
+      if (!found.length) results.append(el('p', { class: 'note' }, 'No players found.'));
+    } }, search, el('button', { class: 'btn small' }, 'Find'));
+    const section = (t, ...kids) => el('section', {}, el('h3', {}, t), ...kids);
+    const invites = Object.entries(st.invites).map(([id, v]) => el('div', { class: 'frow' }, el('span', {}, `🎮 ${v.name}: ${gameName(v.game)}`),
+      el('span', {}, el('button', { class: 'btn small', onclick: () => { Cloud.clearInvite(id); joinRoom(v.game, v.code); } }, 'Join'), ' ', el('button', { class: 'btn alt small', onclick: () => Cloud.clearInvite(id) }, '✕'))));
+    const reqs = Object.entries(st.requests).map(([uid, v]) => el('div', { class: 'frow' }, el('span', {}, '👋 ' + v.name),
+      el('span', {}, el('button', { class: 'btn small', onclick: () => Cloud.accept(uid, v.name) }, 'Accept'), ' ', el('button', { class: 'btn alt small', onclick: () => Cloud.decline(uid) }, 'Decline'))));
+    const friends = Object.entries(st.friends).sort((a, b) => !!st.live[b[0]] - !!st.live[a[0]]).map(([uid, v]) => {
+      const live = st.live[uid], where = live && live.game ? `Playing ${gameName(live.game)}` : live ? 'Online' : 'Offline';
+      return el('div', { class: 'frow' }, el('span', {}, el('i', { class: 'dot' + (live ? ' on' : '') }), ` ${v.name} `, el('small', { class: 'note' }, where)),
+        el('span', {}, live && live.room ? el('button', { class: 'btn small', onclick: () => joinRoom(live.game, live.room) }, 'Join') : null,
+          ctxRoom() && live ? el('button', { class: 'btn small', onclick: async e => { e.target.disabled = true; await Cloud.invite(uid, ctxRoom().game, ctxRoom().code); e.target.textContent = 'Invited'; } }, 'Invite') : null,
+          ' ', el('button', { class: 'btn alt small', title: 'Remove friend', 'aria-label': 'Remove ' + v.name, onclick: () => { if (confirm(`Remove ${v.name} from your friends?`)) Cloud.unfriend(uid); } }, '✕')));
+    });
+    panel.replaceChildren(el('div', { class: 'fhead' }, el('h2', {}, 'Friends'), el('button', { class: 'btn alt small', 'aria-label': 'Close friends', onclick: togglePanel }, '✕')),
+      invites.length ? section('Invites', ...invites) : null,
+      reqs.length ? section('Friend requests', ...reqs) : null,
+      section('Your friends', ...(friends.length ? friends : [el('p', { class: 'note' }, 'No friends yet. Find players below.')])),
+      section('Add a friend', find, results));
+  }
+  const ctxRoom = () => window.__room && !window.__room.closed ? window.__room : null;
+  function togglePanel() {
+    panelOpen = !panelOpen;
+    panel.classList.toggle('open', panelOpen);
+    if (panelOpen) { drawPanel(); if (!social) panel.replaceChildren(el('p', { class: 'note' }, 'Loading…')); }
   }
 
   function topbar() {
     return el('header', { class: 'top' },
       el('a', { class: 'logo', href: '#/', style: 'text-decoration:none' }, "Ackp's Free Multi Game"),
       el('span', {}, '👤 ' + user.name),
+      el('button', { class: 'btn alt small', onclick: togglePanel }, '👥 Friends ', badge),
       el('button', { class: 'btn alt small', 'aria-label': 'Toggle sound', onclick: e => { e.currentTarget.textContent = Sfx.toggle() ? '🔇' : '🔊'; } }, Sfx.muted ? '🔇' : '🔊'),
-      el('button', { class: 'btn alt small', onclick: () => { Store.del('session'); location.hash = '#/'; route(); } }, 'Log out'));
+      el('button', { class: 'btn alt small', onclick: async () => { if (socialOff) socialOff(); socialOff = null; social = null; await Cloud.logOut(); location.hash = '#/'; route(); } }, 'Log out'));
   }
 
   function hub() {
@@ -296,6 +358,14 @@ const App = (() => {
             } }, code, el('button', { class: 'btn alt' }, 'Join'))), err);
         stage.append(box);
 
+        // A friend's invite or a Join click from the friends list lands here.
+        let pend = null;
+        try { pend = JSON.parse(sessionStorage.getItem('amg.join') || 'null'); } catch (x) {}
+        if (pend && pend.game === g.id) {
+          sessionStorage.removeItem('amg.join');
+          err.textContent = 'Joining your friend…';
+          Net.join(g.id, pend.code, user.name).then(waiting, fail);
+        }
         function waiting(room) {
           ctx.room = room;
           ctx.clear();
@@ -308,7 +378,7 @@ const App = (() => {
             if (d.t === 'start') { off(); start(room, d.seed, d.opts); }
           });
           stage.append(el('div', { class: 'box' }, el('h3', {}, 'Room code'), el('div', { class: 'roomcode' }, room.code),
-            el('p', { class: 'note' }, 'Give this code to your friends. Everyone must play the same game.'), list,
+            el('p', { class: 'note' }, 'Give this code to your friends, or invite them from 👥 Friends at the top.'), list,
             room.isHost ? el('button', { class: 'btn', onclick: () => {
               const seed = Math.floor(Math.random() * 1e9);
               room.started = true; off(); room.send({ t: 'start', seed }); start(room, seed);
@@ -318,6 +388,8 @@ const App = (() => {
       },
     };
     const leave = () => { if (ctx.room) { ctx.room.close(); ctx.room = null; } };
+    // The friends panel reads the open room to offer invites.
+    Object.defineProperty(ctx, 'room', { get: () => window.__room || null, set: v => { window.__room = v; } });
     function mount() {
       leave();
       ctx.clear();
@@ -328,13 +400,19 @@ const App = (() => {
     mount();
   }
 
-  function route() {
+  let routing = 0;
+  async function route() {
     if (active) { active(); active = null; }
     if (!unlocked()) return gate();
-    const key = Store.get('session');
-    const users = Store.get('users', {});
-    if (!key || !users[key]) return auth();
-    user = { key, name: users[key].name };
+    const ticket = ++routing;
+    if (!Cloud.me) {
+      show(el('div', { class: 'center' }, el('p', { class: 'note' }, 'Connecting…')));
+      try { await Cloud.start(); } catch (e) { show(el('div', { class: 'center' }, el('div', { class: 'box' }, el('p', { class: 'err' }, e.message), el('button', { class: 'btn', onclick: () => location.reload() }, 'Retry')))); return; }
+      if (ticket !== routing) return;
+    }
+    if (!Cloud.me) return auth();
+    user = { key: Cloud.me.key, name: Cloud.me.name, uid: Cloud.me.uid };
+    if (!socialOff) { watchSocial(); document.body.append(panel); }
     const m = location.hash.match(/^#\/play\/([\w-]+)/);
     const g = m && games.find(x => x.id === m[1]);
     g ? play(g) : hub();
