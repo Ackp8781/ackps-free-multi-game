@@ -102,6 +102,8 @@ App.register({
         over = true;
         ctx.message(title, text, [room ? { label: 'Back to menu', fn: ctx.restart } : { label: 'Play again', fn: () => play(null, Math.floor(Math.random() * 1e9), lvl) }, ...(room ? [] : [{ label: 'Change level', fn: ctx.restart }])]);
       }
+      ctx.cheat('🏆 Win now', () => { if (over) return; if (!placed) place(0); cells.forEach((c, i) => { if (!c.mine && !c.open) { c.open = true; opened++; draw(i); } }); win(); });
+      ctx.cheat('🚩 Flag every mine', () => { if (!placed) place(0); cells.forEach((c, i) => { if (c.mine && !c.flag) { c.flag = true; draw(i); } }); });
       function win() {
         const s = time();
         if (room) room.send({ t: 'won', s });
@@ -185,7 +187,11 @@ App.register({
         }));
         ctx.every(66, () => room.send({ t: 'b', y, alive: state === 'play', score }));
       }
+      let god = false;
+      ctx.cheat('🛡️ Invincible on/off', () => { god = !god; });
+      ctx.cheat('➕ Skip 10 pipes', () => { if (state === 'play') { dist += 10 * SPACE; god = true; setTimeout(() => { god = false; }, 1500); } });
       const die = () => {
+        if (god) return;
         state = 'dead';
         flash = 1; shake = 6; v = Math.max(v, 0);
         Sfx.fx(SOUND.hit); Sfx.fx(SOUND.die);
@@ -333,6 +339,7 @@ App.register({
       const mine = Gfx.Models.fish(0xffd23f); s.add(mine);
       const nameTag = Gfx.label(ctx.user.name); s.add(nameTag);
       const me = { x: W / 2, y: H / 2, s: 14, alive: true, face: 1 };
+      ctx.cheat('🐟 Grow huge', () => { me.s = 120; });
       let t = 0, target = null, eaten = 0, gulp = 0;
       const gone = new Set(), others = {}, cache = new Map(), live = new Map();
       const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);

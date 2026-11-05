@@ -1545,6 +1545,13 @@ const CraftGame = (() => {
       G.ui.frame(dt);
     });
     G.ui = CraftUI.create(G);
+    const inWorld = f => () => { if (G.player && G.ready) f(G.player); else throw new Error('not in a world'); };
+    ctx.cheat('🎨 Creative mode', inWorld(() => G.setMode('creative')));
+    ctx.cheat('⛏️ Survival mode', inWorld(() => G.setMode('survival')));
+    ctx.cheat('💎 Diamond gear and blocks', inWorld(() => { for (const k of ['diamond_pickaxe', 'diamond_sword', 'diamond_axe', 'diamond_helmet', 'diamond_chestplate', 'diamond_leggings', 'diamond_boots', 'diamond', 'torch', 'cooked_beef']) G.give(I[k], ITEMS[I[k]].stack === 1 ? 1 : 64); }));
+    ctx.cheat('❤️ Full health and food', inWorld(p => { p.hp = 20; p.food = 20; p.sat = 20; p.air = 300; G.ui.dirty(); }));
+    ctx.cheat('⌨️ Turn on commands', inWorld(() => { G.level.commands = true; G.ui.chatLine('Commands are on. Press / to type one.'); }));
+    ctx.cheat('☀️ Make it day', inWorld(() => { G.level.time = Math.floor(G.level.time / 24000) * 24000 + 1000; G.level.rain = G.level.thunder = false; }));
     ctx.add(() => {
       if (G.W) { G.saveNow(); G.panorama = null; stopWorld(); }
       if (G.net) { G.net.close(); G.net = null; }

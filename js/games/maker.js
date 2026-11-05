@@ -151,6 +151,7 @@ App.register({
       const pl = { x: home.x, y: home.y, vx: 0, vy: 0, ground: false, w: 16, h: 22 };
       let coins = 0, deaths = 0, over = false, time = 0, walk = 0;
       const total = tiles.filter(v => v === 4).length;
+      ctx.cheat('🏆 Win level', () => { const i = tiles.indexOf(5); if (i >= 0) { pl.x = (i % COLS) * T; pl.y = Math.floor(i / COLS) * T - 2; pl.vy = 0; } });
       const GRAV = game.grav * 130, JUMP = Math.sqrt(2 * GRAV * (game.jump * 12));
       const respawn = () => { Sfx.play('hurt'); st.shake(6); st.burst(hero.position.clone().setY(hero.position.y + 12), 0xff5d8f, 16, 4, 110); pl.x = home.x; pl.y = home.y; pl.vx = pl.vy = 0; deaths++; };
       const overlaps = (ax, ay, aw, ah) => {

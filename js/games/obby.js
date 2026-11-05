@@ -73,6 +73,8 @@ App.register({
 
       const avatar = (shirt, pants) => { const g = Gfx.Models.avatar(shirt, pants); scene.add(g); return g; };
       const pl = { x: 0, y: 2, z: 0, vx: 0, vz: 0, vy: 0, ground: false, ride: null, cp: 0, face: 0, deaths: 0 };
+      ctx.cheat('🏆 Win now', () => { pl.x = cx; pl.z = cz; pl.y = cy + 1; pl.vy = 0; pl.vx = pl.vz = 0; });
+      ctx.cheat('🚩 Skip to next checkpoint', () => { const c = checkpoints[Math.min(pl.cp + 1, checkpoints.length - 1)]; pl.cp = checkpoints.indexOf(c); pl.x = c.x; pl.y = c.y + 1; pl.z = c.z; pl.vy = 0; });
       const body = avatar(0xff5d8f, 0x2d3a66);
       let squash = 0, camYaw = 0, camPitch = .42, drag = null, time = 0, done = false, walk = 0;
       const others = {};

@@ -223,6 +223,14 @@ App.register({
       if (tab === 'Upgrades' || openUps().map(u => u.id).join() !== upKey) drawUps();
     });
     ctx.every(5000, save);
+    ctx.cheat('💎 +1 million gems', () => { gain(1e6); paint(); });
+    ctx.cheat('💎 +1 trillion gems', () => { gain(1e12); paint(); });
+    ctx.cheat('💎 +1e30 gems', () => { gain(1e30); paint(); });
+    ctx.cheat('🏗️ +100 of every building', () => { for (const i of SHOP) s.own[i.id] = (s.own[i.id] || 0) + 100; paint(); });
+    ctx.cheat('📈 Unlock every upgrade', () => { for (const u of UPS) s.ups[u.id] = 1; recalc(); upKey = ''; upList.replaceChildren(); drawUps(); paint(); });
+    ctx.cheat('🏆 Unlock every achievement', () => { for (const a of ACHS) s.ach[a.id] = 1; drawAch(); paint(); });
+    ctx.cheat('✨ Golden gem now', () => { if (!goldEl) spawnGold(); });
+    ctx.cheat('🔁 Make rebirth ready', () => { gain(Math.max(0, need() - s.total)); paint(); });
     ctx.add(save);
     drawUps(); drawAch();
     paint();

@@ -53,6 +53,9 @@ App.register({
       const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
       let gold = 200, lives = 20, wave = 0, queue = [], spawnT = 0, fast = 1, pick = 'arrow', sel = null, over = false, hover = null;
+      ctx.cheat('💰 +10,000 gold', () => { gold += 10000; });
+      ctx.cheat('❤️ +100 lives', () => { lives += 100; });
+      ctx.cheat('⏭️ Skip ahead 5 waves', () => { wave += 5; });
       const towers = [], foes = [], shots = [], blasts = [];
       const tools = el('div', { class: 'tools' });
       const info = el('div', { class: 'row', style: 'min-height:44px;align-items:center' });

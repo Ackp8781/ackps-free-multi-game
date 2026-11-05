@@ -42,7 +42,19 @@ const App = (() => {
   const GATE = 'c49eb5e7bb09a8e471441ed78fa006cbb96c24b221b12523d8ac63ecef1d81b0';
   const games = [];
   const root = () => document.getElementById('app');
-  let user = null, active = null;
+  let user = null, active = null, cheats = [];
+  // Only this account sees the admin panel. Cheats change your own game in your own browser.
+  const ADMIN = '32fzE8W74We9euqkcwOQ0JvuT703';
+  const adminBtn = el('button', { class: 'adminbtn', 'aria-label': 'Admin panel', onclick: () => adminPanel() }, '⚡');
+  function adminPanel() {
+    const g = games.find(x => location.hash === '#/play/' + x.id);
+    const list = cheats.length ? cheats.map(c => el('button', { class: 'btn alt', onclick: () => { try { c.fn(); toast('⚡ ' + c.label); } catch (e) { toast('That did not work here.'); } } }, c.label))
+      : [el('p', { class: 'note' }, g ? 'Start a round of this game to see its cheats.' : 'Open a game to see its cheats.')];
+    const o = el('div', { class: 'overlay', style: 'position:fixed;z-index:95', onclick: e => { if (e.target === o) o.remove(); } }, el('div', { class: 'box', style: 'max-width:380px' },
+      el('div', { class: 'fhead' }, el('h2', {}, '⚡ Admin' + (g ? ': ' + g.name : '')), el('button', { class: 'btn alt small', 'aria-label': 'Close', onclick: () => o.remove() }, '✕')),
+      el('div', { class: 'stack' }, ...list)));
+    document.body.append(o);
+  }
 
   const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   const sha = async s => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
@@ -244,7 +256,7 @@ const App = (() => {
       el('button', { class: 'btn alt small', onclick: account }, '👤 ' + user.name),
       el('button', { class: 'btn alt small', onclick: togglePanel }, '👥 Friends ', badge),
       el('button', { class: 'btn alt small', 'aria-label': 'Toggle sound', onclick: e => { e.currentTarget.textContent = Sfx.toggle() ? '🔇' : '🔊'; } }, Sfx.muted ? '🔇' : '🔊'),
-      el('button', { class: 'btn alt small', onclick: async () => { if (socialOff) socialOff(); socialOff = null; social = null; await Cloud.logOut(); location.hash = '#/'; route(); } }, 'Log out'));
+      el('button', { class: 'btn alt small', onclick: async () => { if (socialOff) socialOff(); socialOff = null; social = null; await Cloud.logOut(); adminBtn.remove(); location.hash = '#/'; route(); } }, 'Log out'));
   }
 
   function hub() {
@@ -321,6 +333,8 @@ const App = (() => {
         return false;
       },
       add: f => cleanups.push(f),
+      // Registers an admin-only action for the round that is running.
+      cheat: (label, fn) => cheats.push({ label, fn }),
       on(t, type, f, opts) { t.addEventListener(type, f, opts); cleanups.push(() => t.removeEventListener(type, f, opts)); },
       loop(f) {
         let id, last = performance.now(), run = true;
@@ -340,6 +354,7 @@ const App = (() => {
       clear() {
         cleanups.forEach(f => { try { f(); } catch (e) { console.error(e); } });
         cleanups = [];
+        cheats = [];
         ctx.keys.clear();
         stage.replaceChildren();
         const block = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
@@ -458,6 +473,7 @@ const App = (() => {
     if (!Cloud.me) return auth();
     user = { key: Cloud.me.key, name: Cloud.me.name, uid: Cloud.me.uid };
     if (!socialOff) { watchSocial(); document.body.append(panel); }
+    if (user.uid === ADMIN) document.body.append(adminBtn); else adminBtn.remove();
     const m = location.hash.match(/^#\/play\/([\w-]+)/);
     const g = m && games.find(x => x.id === m[1]);
     g ? play(g) : hub();
