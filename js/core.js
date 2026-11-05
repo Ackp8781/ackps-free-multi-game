@@ -193,10 +193,55 @@ const App = (() => {
     if (panelOpen) { drawPanel(); if (!social) panel.replaceChildren(el('p', { class: 'note' }, 'Loading…')); }
   }
 
+  // Account settings: change your username or password. Both ask for the current password first.
+  function account() {
+    const err = el('p', { class: 'err', role: 'alert' }), ok = el('p', { class: 'note', role: 'status' });
+    const newName = el('input', { value: user.name, maxLength: 20, required: true, 'aria-label': 'New username', autocomplete: 'username' });
+    const pwName = el('input', { type: 'password', placeholder: 'Current password', required: true, 'aria-label': 'Current password', autocomplete: 'current-password' });
+    const cur = el('input', { type: 'password', placeholder: 'Current password', required: true, 'aria-label': 'Current password', autocomplete: 'current-password' });
+    const next = el('input', { type: 'password', placeholder: 'New password', minLength: 6, required: true, 'aria-label': 'New password', autocomplete: 'new-password' });
+    const again = el('input', { type: 'password', placeholder: 'Repeat new password', minLength: 6, required: true, 'aria-label': 'Repeat new password', autocomplete: 'new-password' });
+    const busy = async (form, f) => {
+      const b = form.querySelector('button'); b.disabled = true; err.textContent = ''; ok.textContent = 'Saving…';
+      try { await f(); } catch (x) { err.textContent = x.message; ok.textContent = ''; }
+      b.disabled = false;
+    };
+    const o = el('div', { class: 'overlay', style: 'position:fixed;z-index:90', onclick: e => { if (e.target === o) o.remove(); } }, el('div', { class: 'box', style: 'max-width:420px;text-align:left' },
+      el('div', { class: 'fhead' }, el('h2', {}, 'Your account'), el('button', { class: 'btn alt small', 'aria-label': 'Close', onclick: () => o.remove() }, '✕')),
+      el('h3', { style: 'margin-top:14px' }, 'Change username'),
+      el('form', { onsubmit: e => { e.preventDefault(); const f = e.target; busy(f, async () => {
+        const n = newName.value.trim();
+        if (!/^[\w .-]{2,20}$/.test(n)) throw new Error('Use 2-20 letters, numbers, spaces, dots or dashes.');
+        const oldKey = user.key, me = await Cloud.rename(n, pwName.value);
+        moveSaves(oldKey, me.key);
+        user = { key: me.key, name: me.name, uid: me.uid };
+        pwName.value = ''; ok.textContent = 'Username changed. Log in with the new name from now on.';
+        setTimeout(() => { o.remove(); route(); }, 1200);
+      }); } }, newName, pwName, el('button', { class: 'btn' }, 'Save username')),
+      el('h3', { style: 'margin-top:14px' }, 'Change password'),
+      el('form', { onsubmit: e => { e.preventDefault(); const f = e.target; busy(f, async () => {
+        if (next.value !== again.value) throw new Error('The new passwords do not match.');
+        await Cloud.changePassword(cur.value, next.value);
+        cur.value = next.value = again.value = ''; ok.textContent = 'Password changed.';
+      }); } }, cur, next, again, el('button', { class: 'btn' }, 'Save password')),
+      err, ok));
+    document.body.append(o);
+    newName.focus();
+  }
+  // Scores and saves are stored under the username, so they follow a rename.
+  function moveSaves(from, to) {
+    if (from === to) return;
+    try {
+      const pre = 'amg.u.' + from + '.';
+      for (const k of Object.keys(localStorage)) if (k.startsWith(pre)) { localStorage.setItem('amg.u.' + to + '.' + k.slice(pre.length), localStorage.getItem(k)); localStorage.removeItem(k); }
+    } catch (e) {}
+    if (window.CraftDB) CraftDB.worlds(from).then(ws => ws.forEach(w => { w.owner = to; CraftDB.putWorld(w); })).catch(() => {});
+  }
+
   function topbar() {
     return el('header', { class: 'top' },
       el('a', { class: 'logo', href: '#/', style: 'text-decoration:none' }, "Ackp's Free Multi Game"),
-      el('span', {}, '👤 ' + user.name),
+      el('button', { class: 'btn alt small', onclick: account }, '👤 ' + user.name),
       el('button', { class: 'btn alt small', onclick: togglePanel }, '👥 Friends ', badge),
       el('button', { class: 'btn alt small', 'aria-label': 'Toggle sound', onclick: e => { e.currentTarget.textContent = Sfx.toggle() ? '🔇' : '🔊'; } }, Sfx.muted ? '🔇' : '🔊'),
       el('button', { class: 'btn alt small', onclick: async () => { if (socialOff) socialOff(); socialOff = null; social = null; await Cloud.logOut(); location.hash = '#/'; route(); } }, 'Log out'));

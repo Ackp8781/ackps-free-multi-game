@@ -49,13 +49,20 @@ const Cloud = (() => {
     try { cred = await auth.createUserWithEmailAndPassword(emailOf(name), pw); } catch (e) { throw new Error(friendly(e)); }
     const uid = cred.user.uid;
     await db.ref('names/' + key).set(uid);
+    await db.ref('logins/' + uid).set(emailOf(name));
     await db.ref('users/' + uid).set({ name: name.trim(), key, created: firebase.database.ServerValue.TIMESTAMP });
     me = { uid, key, name: name.trim() };
     online();
     return me;
   };
+  // The sign-in address never changes, so a renamed player looks it up through their current username.
+  const loginOf = async name => {
+    const uid = (await db.ref('names/' + keyOf(name)).get()).val();
+    if (!uid) return emailOf(name);
+    return (await db.ref('logins/' + uid).get()).val() || emailOf(name);
+  };
   const logIn = async (name, pw) => {
-    try { await auth.signInWithEmailAndPassword(emailOf(name), pw); } catch (e) { throw new Error(friendly(e)); }
+    try { await auth.signInWithEmailAndPassword(await loginOf(name), pw); } catch (e) { throw new Error(friendly(e)); }
     me = await profile(auth.currentUser.uid);
     if (!me) throw new Error('This account has no profile. Create it again.');
     online();
@@ -116,5 +123,32 @@ const Cloud = (() => {
     return () => refs.forEach(r => r.off());
   };
   const clearInvite = id => db.ref(`invites/${me.uid}/${id}`).remove();
-  return { start, signUp, logIn, logOut, setActivity, findPlayers, request, accept, decline, unfriend, invite, watch, clearInvite, get me() { return me; }, get db() { return db; } };
+  const reauth = async pw => {
+    const u = auth.currentUser;
+    try { await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw)); }
+    catch (e) { throw new Error(/wrong-password|invalid-credential|invalid-login/.test(e.code || '') ? 'Your current password is wrong.' : friendly(e)); }
+  };
+  const changePassword = async (current, next) => {
+    await reauth(current);
+    try { await auth.currentUser.updatePassword(next); } catch (e) { throw new Error(friendly(e)); }
+  };
+  const rename = async (name, pw) => {
+    const key = keyOf(name), old = me;
+    if (key === old.key && name.trim() === old.name) return me;
+    await reauth(pw);
+    const owner = (await db.ref('names/' + key).get()).val();
+    if (owner && owner !== old.uid) throw new Error('That username is taken.');
+    const login = db.ref('logins/' + old.uid);
+    if (!(await login.get()).exists()) await login.set(auth.currentUser.email);
+    if (key !== old.key) await db.ref('names/' + key).set(old.uid);
+    await db.ref('users/' + old.uid).update({ name: name.trim(), key });
+    if (key !== old.key) await db.ref('names/' + old.key).remove();
+    // Friends keep a copy of your name; refresh it on their side.
+    const friends = (await db.ref('friends/' + old.uid).get()).val() || {};
+    await Promise.all(Object.keys(friends).map(f => db.ref(`friends/${f}/${old.uid}/name`).set(name.trim()).catch(() => {})));
+    me = { uid: old.uid, key, name: name.trim() };
+    setActivity(presence);
+    return me;
+  };
+  return { start, changePassword, rename, signUp, logIn, logOut, setActivity, findPlayers, request, accept, decline, unfriend, invite, watch, clearInvite, get me() { return me; }, get db() { return db; } };
 })();
