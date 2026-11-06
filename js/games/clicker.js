@@ -8,7 +8,6 @@ App.register({
     if (!ctx.stage.isConnected) return;
     const SHOP = [
       { id: 'pick', name: 'Better Pickaxe', icon: '⛏️', base: 15, click: 1 },
-      { id: 'auto', name: 'Auto Clicker', icon: '🖱️', base: 100, auto: 1 },
       { id: 'miner', name: 'Miner', icon: '👷', base: 25, rate: 1 },
       { id: 'drill', name: 'Drill', icon: '🪛', base: 300, rate: 10 },
       { id: 'dig', name: 'Excavator', icon: '🚜', base: 4000, rate: 80 },
@@ -28,13 +27,24 @@ App.register({
       { id: 'galaxy', name: 'Galaxy Vault', icon: '🌌', base: 1.2e24, rate: 2e15 },
       { id: 'mirror', name: 'Mirror Universe', icon: '🪞', base: 8e25, rate: 25e15 },
       { id: 'prism', name: 'Infinite Prism', icon: '🔮', base: 6e27, rate: 35e16 },
+      // Auto clickers have their own tab. cps is how many times each one clicks the gem per second.
+      { id: 'auto', name: 'Auto Clicker', icon: '🖱️', base: 100, cps: 2 },
+      { id: 'finger', name: 'Robo Finger', icon: '👆', base: 6000, cps: 12 },
+      { id: 'hammer', name: 'Hammer Bot', icon: '🔨', base: 3e5, cps: 70 },
+      { id: 'tapper', name: 'Turbo Tapper', icon: '⚡', base: 2e7, cps: 450 },
+      { id: 'drone', name: 'Click Drone Fleet', icon: '🛸', base: 1.5e9, cps: 3000 },
+      { id: 'piston', name: 'Mega Piston', icon: '🏭', base: 1.2e11, cps: 2e4 },
+      { id: 'quantum', name: 'Quantum Clicker', icon: '⚛️', base: 1e13, cps: 1.4e5 },
+      { id: 'godhand', name: 'Hand of the Gem God', icon: '🖐️', base: 1e15, cps: 1e6 },
     ];
     const byId = Object.fromEntries(SHOP.map(i => [i.id, i]));
+    const AUTOS = SHOP.filter(i => i.cps), BUILDS = SHOP.filter(i => !i.cps);
+    const autoOwned = s => AUTOS.reduce((a, i) => a + (s.own[i.id] || 0), 0);
 
     // Upgrades are generated in families. need(s) unlocks one; apply runs on the effects object.
     const UPS = [];
     const TIERS = [[1, 10, 'Sturdy'], [5, 50, 'Polished'], [25, 500, 'Reinforced'], [50, 5e4, 'Turbo'], [100, 5e6, 'Titanium'], [150, 5e8, 'Diamond-Tipped'], [200, 5e10, 'Quantum'], [250, 5e13, 'Mythic'], [300, 5e16, 'Cosmic'], [350, 5e19, 'Ultimate']];
-    for (const b of SHOP) for (const [n, k, adj] of TIERS) UPS.push({ id: `${b.id}${n}`, icon: b.icon, name: `${adj} ${b.name}`, info: b.click ? 'Clicks x2' : b.auto ? 'Auto Clickers click twice as hard' : `${b.name} output x2`, cost: b.base * k, need: s => (s.own[b.id] || 0) >= n, apply: e => { e.b[b.id] *= 2; } });
+    for (const b of SHOP) for (const [n, k, adj] of TIERS) UPS.push({ id: `${b.id}${n}`, icon: b.icon, name: `${adj} ${b.name}`, info: b.click ? 'Clicks x2' : b.cps ? `${b.name}s click twice as hard` : `${b.name} output x2`, cost: b.base * k, need: s => (s.own[b.id] || 0) >= n, apply: e => { e.b[b.id] *= 2; } });
     const STONES = ['Quartz', 'Amethyst', 'Topaz', 'Garnet', 'Opal', 'Jade', 'Sapphire', 'Ruby', 'Emerald', 'Diamond', 'Onyx', 'Moonstone', 'Starstone', 'Voidstone', 'Prismite'], CUTS = ['Rough', 'Faceted', 'Brilliant'];
     for (let k = 0; k < 45; k++) {
       const at = 1e3 * Math.pow(10, k);
@@ -47,7 +57,8 @@ App.register({
     for (let k = 0; k < 8; k++) UPS.push({ id: 'res' + k, icon: '🔔', name: `Resonant Strike ${k + 1}`, info: 'Clicks gain 1% of gems/s', cost: 5e4 * Math.pow(100, k), need: s => s.clicks >= 200 * (k + 1), apply: e => { e.clickPct += .01; } });
     for (let k = 0; k < 6; k++) UPS.push({ id: 'luck' + k, icon: '🍀', name: `Lucky Charm ${k + 1}`, info: 'Golden gems come 15% more often', cost: 5e4 * Math.pow(500, k), need: s => s.goldens >= k * 3 + 1, apply: e => { e.goldWait *= .85; } });
     for (let k = 0; k < 6; k++) UPS.push({ id: 'shine' + k, icon: '⌛', name: `Long Shine ${k + 1}`, info: 'Golden effects last 15% longer', cost: 2e5 * Math.pow(500, k), need: s => s.goldens >= k * 4 + 2, apply: e => { e.goldLen *= 1.15; } });
-    for (let k = 0; k < 8; k++) UPS.push({ id: 'tick' + k, icon: '⚙️', name: `Faster Springs ${k + 1}`, info: 'Auto Clickers click 50% faster', cost: 2000 * Math.pow(60, k), need: s => (s.own.auto || 0) >= 5 * (k + 1), apply: e => { e.autoSpeed *= 1.5; } });
+    for (let k = 0; k < 8; k++) UPS.push({ id: 'tick' + k, icon: '⚙️', name: `Faster Springs ${k + 1}`, info: 'All auto clickers click 50% faster', cost: 2000 * Math.pow(60, k), need: s => autoOwned(s) >= 5 * (k + 1), apply: e => { e.autoSpeed *= 1.5; } });
+    for (let k = 0; k < 6; k++) UPS.push({ id: 'oil' + k, icon: '🛢️', name: `Gear Oil ${k + 1}`, info: 'All auto clickers click twice as hard', cost: 5e4 * Math.pow(400, k), need: s => autoOwned(s) >= 25 * (k + 1), apply: e => { e.autoPower *= 2; } });
     for (let k = 0; k < 5; k++) UPS.push({ id: 'fury' + k, icon: '🔥', name: `Gem Fury ${k + 1}`, info: 'Frenzy multiplier +1', cost: 1e6 * Math.pow(1000, k), need: s => s.goldens >= k * 5 + 5, apply: e => { e.frenzyMul += 1; } });
     for (let k = 0; k < 5; k++) UPS.push({ id: 'nap' + k, icon: '😴', name: `Night Shift ${k + 1}`, info: 'Offline mining +10% speed and +2 hours', cost: 5e5 * Math.pow(800, k), need: s => s.allTime >= 1e6 * Math.pow(1000, k), apply: e => { e.offPct += .1; e.offHours += 2; } });
     for (let k = 0; k < 12; k++) UPS.push({ id: 'trophy' + k, icon: '🏆', name: `Trophy Polish ${k + 1}`, info: 'Each achievement gives +1% more', cost: 1e5 * Math.pow(300, k), need: s => Object.keys(s.ach).length >= 10 * (k + 1), apply: e => { e.achPct += .01; } });
@@ -59,6 +70,7 @@ App.register({
     for (const n of [1, 7, 27, 77, 200]) ACHS.push({ id: 'gold' + n, icon: '✨', name: `Catch ${n} golden gems`, test: s => s.goldens >= n });
     for (const n of [10, 50, 100, 200]) ACHS.push({ id: 'ups' + n, icon: '📈', name: `Buy ${n} upgrades`, test: s => Object.keys(s.ups).length >= n });
     for (const n of [1, 5, 10]) ACHS.push({ id: 'skin' + n, icon: '🎨', name: `Own ${n} skin${n > 1 ? 's' : ''}`, test: s => Object.keys(s.skins || {}).length >= n });
+    for (const n of [10, 100, 500, 1000]) ACHS.push({ id: 'autos' + n, icon: '🖱️', name: `Own ${n} auto clickers in total`, test: s => autoOwned(s) >= n });
     for (const n of [1, 3, 5, 10]) ACHS.push({ id: 're' + n, icon: '🔁', name: `Rebirth ${n} times`, test: s => s.rebirths >= n });
 
     const REBIRTH = 1e6, GROW = 8;
@@ -66,18 +78,19 @@ App.register({
     s.allTime = Math.max(s.allTime, s.total);
     let fx = {}, frenzy = 0, clickFrenzy = 0, buyN = 1, sell = false, tab = 'Buildings';
     const recalc = () => {
-      fx = { b: Object.fromEntries(SHOP.map(i => [i.id, 1])), global: 1, click: 1, clickPct: 0, goldWait: 1, goldLen: 1, achPct: .01, autoSpeed: 1, frenzyMul: 7, offPct: .5, offHours: 2 };
+      fx = { b: Object.fromEntries(SHOP.map(i => [i.id, 1])), global: 1, click: 1, clickPct: 0, goldWait: 1, goldLen: 1, achPct: .01, autoSpeed: 1, autoPower: 1, frenzyMul: 7, offPct: .5, offHours: 2 };
       for (const u of UPS) if (s.ups[u.id]) u.apply(fx);
     };
     recalc();
     const mult = () => (1 + s.rebirths * .5) * fx.global * (1 + Object.keys(s.ach).length * fx.achPct);
     const bRate = i => (i.rate || 0) * fx.b[i.id] * mult();
-    const baseSec = () => SHOP.reduce((a, i) => a + bRate(i) * (s.own[i.id] || 0), 0);
+    const baseSec = () => BUILDS.reduce((a, i) => a + bRate(i) * (s.own[i.id] || 0), 0);
     const perSec = () => baseSec() * (frenzy > 0 ? fx.frenzyMul : 1);
     const perClick = () => ((1 + (s.own.pick || 0)) * fx.b.pick * fx.click * mult() + perSec() * fx.clickPct) * (clickFrenzy > 0 ? 77 : 1);
-    // Each Auto Clicker presses the gem twice a second for you; upgrades make each press stronger or faster.
-    const autoClicksPerSec = () => (s.own.auto || 0) * 2 * fx.autoSpeed;
-    const autoPerSec = () => autoClicksPerSec() * perClick() * fx.b.auto;
+    // Auto clickers press the gem for you. Each press is worth one of your clicks times that clicker's upgrades.
+    const autoCps = i => i.cps * fx.autoSpeed;
+    const autoClicksPerSec = () => AUTOS.reduce((a, i) => a + autoCps(i) * (s.own[i.id] || 0), 0);
+    const autoPerSec = () => perClick() * fx.autoPower * AUTOS.reduce((a, i) => a + autoCps(i) * fx.b[i.id] * (s.own[i.id] || 0), 0);
     const costOf = (i, n) => { const own = s.own[i.id] || 0; return Math.ceil(i.base * Math.pow(1.15, own) * (Math.pow(1.15, n) - 1) / .15); };
     const refund = (i, n) => { const own = s.own[i.id] || 0; n = Math.min(n, own); return n ? i.base * Math.pow(1.15, own - n) * (Math.pow(1.15, n) - 1) / .15 * .5 : 0; };
     const gain = n => { s.gems += n; s.total += n; s.allTime += n; };
@@ -113,7 +126,6 @@ App.register({
 
     const rows = SHOP.map(i => {
       const owned = el('small'), info = el('small'), cost = el('b');
-      if (i.auto) info.title = 'Clicks the gem for you';
       const b = el('button', { onclick: () => {
         if (sell) {
           const n = Math.min(buyN, s.own[i.id] || 0);
@@ -125,7 +137,8 @@ App.register({
       } }, el('span', {}, `${i.icon} ${i.name}`, info, owned), cost);
       return { i, b, owned, info, cost };
     });
-    const buildings = el('div', { class: 'shop', style: 'max-width:980px' }, ...rows.map(r => r.b));
+    const buildings = el('div', { class: 'shop', style: 'max-width:980px' }, ...rows.filter(r => !r.i.cps).map(r => r.b));
+    const autoShop = el('div', { class: 'shop', style: 'max-width:980px' }, ...rows.filter(r => r.i.cps).map(r => r.b));
     const modes = el('div', { class: 'row' });
     const drawModes = () => modes.replaceChildren(...[1, 10, 100].map(n => el('button', { class: 'chip' + (buyN === n ? ' on' : ''), onclick: () => { buyN = n; drawModes(); paint(); } }, 'x' + n)),
       el('button', { class: 'chip' + (sell ? ' on' : ''), onclick: () => { sell = !sell; drawModes(); paint(); } }, sell ? 'Selling' : 'Sell'));
@@ -164,9 +177,10 @@ App.register({
       }));
     }
     const upList = el('div', { class: 'shop', style: 'max-width:980px' }), achList = el('div', { class: 'tiles' }), stats = el('div', { class: 'panel', style: 'max-width:980px;line-height:1.8' });
-    const tabs = el('div', { class: 'row' }), panes = { Buildings: el('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr);gap:10px;justify-items:center;width:100%' }, modes, buildings), Upgrades: upList, Skins: skinList, Achievements: achList, Stats: stats };
+    const tabs = el('div', { class: 'row' }), shopPane = list => el('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr);gap:10px;justify-items:center;width:100%' }, list),
+      panes = { Buildings: shopPane(buildings), 'Auto Clickers': shopPane(autoShop), Upgrades: upList, Skins: skinList, Achievements: achList, Stats: stats };
     const body = el('div', { style: 'width:100%;display:grid;grid-template-columns:minmax(0,1fr);justify-items:center' });
-    const drawTabs = () => tabs.replaceChildren(...Object.keys(panes).map(t => el('button', { class: 'chip' + (tab === t ? ' on' : ''), onclick: () => { tab = t; drawTabs(); body.replaceChildren(panes[t]); drawUps(); drawAch(); drawSkins(); paint(); } }, t === 'Upgrades' ? `Upgrades (${openUps().length})` : t)));
+    const drawTabs = () => tabs.replaceChildren(...Object.keys(panes).map(t => el('button', { class: 'chip' + (tab === t ? ' on' : ''), onclick: () => { tab = t; drawTabs(); if (t === 'Buildings' || t === 'Auto Clickers') panes[t].prepend(modes); body.replaceChildren(panes[t]); drawUps(); drawAch(); drawSkins(); paint(); } }, t === 'Upgrades' ? `Upgrades (${openUps().length})` : t)));
     const openUps = () => UPS.filter(u => !s.ups[u.id] && u.need(s)).sort((a, b) => a.cost - b.cost);
     let upKey = '', upRows = [];
     function drawUps() {
@@ -210,6 +224,7 @@ App.register({
     ctx.on(document, 'fullscreenchange', () => { if (goldEl) host().append(goldEl); });
 
     ctx.stage.append(count, rate, buffs, gem, tabs, body, rebirth);
+    panes.Buildings.prepend(modes);
     body.append(panes.Buildings);
     view = Gfx.stage(ctx, { parent: gem, ratio: 1, fov: 40, near: .1, far: 100, top: '#1a1540', bottom: '#2a2358', sunDir: [.4, 1, .8], shadow: 5 });
     view.camera.position.set(0, .6, 6); view.camera.lookAt(0, 0, 0);
@@ -252,7 +267,7 @@ App.register({
         r.b.style.display = own || hidden < 2 ? '' : 'none';
         if (!own) hidden++;
         r.cost.textContent = sell ? '+' + fmt(refund(r.i, buyN)) : fmt(p);
-        r.info.textContent = r.i.click ? `+${fmt(fx.b.pick * fx.click * mult())} per click` : r.i.auto ? `${fmt(2 * fx.autoSpeed)} clicks/s each` : `+${fmt(bRate(r.i))} gems/s each`;
+        r.info.textContent = r.i.click ? `+${fmt(fx.b.pick * fx.click * mult())} per click` : r.i.cps ? `${fmt(autoCps(r.i))} clicks/s each · +${fmt(autoCps(r.i) * fx.b[r.i.id] * fx.autoPower * perClick())} gems/s` : `+${fmt(bRate(r.i))} gems/s each`;
         r.owned.textContent = `Owned: ${own}`;
         r.b.disabled = sell ? !own : s.gems < p;
       }
@@ -260,7 +275,7 @@ App.register({
       rebirth.textContent = `🔁 Rebirth (${fmt(s.total)} / ${fmt(need())} mined)`;
       rebirth.disabled = s.total < need();
       if (tab === 'Stats') stats.innerHTML = '';
-      if (tab === 'Stats') stats.append(...[`All-time gems: ${fmt(s.allTime)}`, `This run: ${fmt(s.total)}`, `Mined by hand: ${fmt(s.handmade)}`, `Clicks: ${s.clicks}`, `Golden gems caught: ${s.goldens}`, `Auto Clicker presses: ${fmt(s.autoClicks)}`, `Skins: ${SKINS.filter(ownsSkin).length} / ${SKINS.length}`, `Buildings: ${SHOP.reduce((a, i) => a + (s.own[i.id] || 0), 0)}`, `Upgrades: ${Object.keys(s.ups).length} / ${UPS.length}`, `Achievements: ${Object.keys(s.ach).length} / ${ACHS.length}`, `Rebirths: ${s.rebirths}`].map(t => el('div', {}, t)));
+      if (tab === 'Stats') stats.append(...[`All-time gems: ${fmt(s.allTime)}`, `This run: ${fmt(s.total)}`, `Mined by hand: ${fmt(s.handmade)}`, `Clicks: ${s.clicks}`, `Golden gems caught: ${s.goldens}`, `Auto Clicker presses: ${fmt(s.autoClicks)}`, `Skins: ${SKINS.filter(ownsSkin).length} / ${SKINS.length}`, `Buildings: ${BUILDS.reduce((a, i) => a + (s.own[i.id] || 0), 0)}`, `Auto clickers: ${autoOwned(s)}`, `Upgrades: ${Object.keys(s.ups).length} / ${UPS.length}`, `Achievements: ${Object.keys(s.ach).length} / ${ACHS.length}`, `Rebirths: ${s.rebirths}`].map(t => el('div', {}, t)));
     }
     drawTabs();
     ctx.every(100, () => {
@@ -287,7 +302,18 @@ App.register({
     ctx.cheat('🏆 Unlock every achievement', () => { for (const a of ACHS) s.ach[a.id] = 1; drawAch(); paint(); });
     ctx.cheat('✨ Golden gem now', () => { if (!goldEl) spawnGold(); });
     ctx.cheat('🎨 Unlock every skin', () => { for (const k of SKINS) s.skins[k.id] = 1; drawSkins(); });
-    ctx.cheat('🖱️ +100 Auto Clickers', () => { s.own.auto = (s.own.auto || 0) + 100; paint(); });
+    // Typed cheats: the admin panel shows a box, and the number typed is passed in.
+    const whole = n => Math.max(0, Math.floor(n));
+    ctx.cheat('💎 Give gems', n => { gain(n); s.gems = Math.max(0, s.gems); paint(); }, 'Amount, like 5m or 1e30');
+    ctx.cheat('💎 Set gems to', n => { s.gems = Math.max(0, n); s.allTime = Math.max(s.allTime, s.gems); paint(); }, 'Amount');
+    ctx.cheat('🔁 Give rebirths', n => { s.rebirths = whole(s.rebirths + Math.round(n)); recalc(); drawSkins(); paint(); }, 'How many (minus takes away)');
+    ctx.cheat('🔁 Rebirth now (keep everything)', () => { s.rebirths++; recalc(); paint(); });
+    ctx.cheat('🏗️ Give every building', n => { for (const i of BUILDS) s.own[i.id] = whole((s.own[i.id] || 0) + n); paint(); }, 'How many of each');
+    ctx.cheat('🖱️ Give every auto clicker', n => { for (const i of AUTOS) s.own[i.id] = whole((s.own[i.id] || 0) + n); paint(); }, 'How many of each');
+    ctx.cheat('⛏️ Give pickaxes', n => { s.own.pick = whole((s.own.pick || 0) + n); paint(); }, 'How many');
+    ctx.cheat('✨ Add golden gems caught', n => { s.goldens = whole(s.goldens + n); drawSkins(); paint(); }, 'How many');
+    ctx.cheat('🔥 Frenzy for 5 minutes', () => { frenzy = 300; paint(); });
+    ctx.cheat('👆 Click Frenzy for 1 minute', () => { clickFrenzy = 60; paint(); });
     ctx.cheat('🔁 Make rebirth ready', () => { gain(Math.max(0, need() - s.total)); paint(); });
     ctx.add(save);
     drawUps(); drawAch(); drawSkins();

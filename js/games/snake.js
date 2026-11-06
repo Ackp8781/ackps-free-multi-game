@@ -43,6 +43,7 @@ App.register({
         return { id: p.id, name: p.name, col: i % 8, body: [[x, y], [x - d[0], y], [x - 2 * d[0], y]], d, next: d, alive: true, score: 0 };
       };
       let state = { snakes: players.map(spawn), apples: [] }, done = false;
+      ctx.cheat('🍎 Give apples', n => { const m = state.snakes.find(s => s.id === myId) || state.snakes[0]; n = Math.max(0, Math.min(500, Math.floor(n))); m.score += n; for (let i = 0; i < n; i++) m.body.push(m.body[m.body.length - 1]); }, 'How many (up to 500)');
       ctx.cheat('🍎 +10 apples', () => { const m = state.snakes.find(s => s.id === myId) || state.snakes[0]; m.score += 10; for (let i = 0; i < 10; i++) m.body.push(m.body[m.body.length - 1]); });
       const free = () => {
         for (;;) {

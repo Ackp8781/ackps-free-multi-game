@@ -178,6 +178,7 @@ App.register({
       };
       ctx.cheat('🏁 Finish race in 1st', () => { if (!done) me.prog = total + 1; });
       ctx.cheat('🪙 +10,000 coins', () => { const c = load(); c.coins += 10000; ctx.save('car', c); });
+      ctx.cheat('🪙 Give coins', n => { const c = load(); c.coins = Math.max(0, Math.floor(c.coins + n)); ctx.save('car', c); }, 'Amount');
       function finish() {
         done = true;
         for (const c of [0xffd23f, 0xff5d8f, 0x3fe0c5]) st.burst(mine.position.clone().setY(30), c, 30, 6, 170);

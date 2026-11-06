@@ -56,6 +56,8 @@ App.register({
       ctx.cheat('💰 +10,000 gold', () => { gold += 10000; });
       ctx.cheat('❤️ +100 lives', () => { lives += 100; });
       ctx.cheat('⏭️ Skip ahead 5 waves', () => { wave += 5; });
+      ctx.cheat('💰 Give gold', n => { gold = Math.max(0, Math.floor(gold + n)); }, 'Amount');
+      ctx.cheat('❤️ Set lives', n => { lives = Math.max(1, Math.floor(n)); }, 'Lives');
       const towers = [], foes = [], shots = [], blasts = [];
       const tools = el('div', { class: 'tools' });
       const info = el('div', { class: 'row', style: 'min-height:44px;align-items:center' });

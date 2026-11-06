@@ -46,15 +46,38 @@ const App = (() => {
   // Only this account sees the admin panel. Cheats change your own game in your own browser.
   const ADMIN = '32fzE8W74We9euqkcwOQ0JvuT703';
   const adminBtn = el('button', { class: 'adminbtn', 'aria-label': 'Admin panel', onclick: () => adminPanel() }, '⚡');
+  // Reads amounts like 2500, 1.5m, 3b, 10qa or 1e30. Returns NaN when it cannot.
+  const parseAmount = t => {
+    const m = String(t).trim().replace(/[,_\s]/g, '').match(/^(-?[\d.]+(?:e[+-]?\d+)?)([a-z]*)$/i);
+    if (!m) return NaN;
+    const u = ['', 'k', 'm', 'b', 't', 'qa', 'qi', 'sx', 'sp', 'oc', 'no', 'dc', 'udc', 'ddc', 'tdc'].indexOf(m[2].toLowerCase());
+    return u < 0 ? NaN : parseFloat(m[1]) * Math.pow(1000, u);
+  };
+  function runCheat(c, v) {
+    try { c.fn(v); toast('⚡ ' + c.label + (v === undefined ? '' : ': ' + (v < 0 ? '-' : '') + fmt(Math.abs(v)))); } catch (e) { toast('That did not work here.'); }
+  }
+  function cheatRow(c) {
+    if (!c.ask) return el('button', { class: 'btn alt', onclick: () => runCheat(c) }, c.label);
+    const input = el('input', { class: 'in', inputMode: 'decimal', placeholder: c.ask, 'aria-label': c.label, style: 'flex:1;min-width:0' });
+    const go = () => {
+      const v = parseAmount(input.value);
+      if (!isFinite(v)) { toast('Type a number, like 5000, 2.5m or 1e30.'); return; }
+      runCheat(c, v); input.value = '';
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    return el('div', { class: 'cheatrow' }, el('span', {}, c.label), el('div', { class: 'row', style: 'flex-wrap:nowrap' }, input, el('button', { class: 'btn small', onclick: go }, 'Go')));
+  }
   function adminPanel() {
     const g = games.find(x => location.hash === '#/play/' + x.id);
-    const list = cheats.length ? cheats.map(c => el('button', { class: 'btn alt', onclick: () => { try { c.fn(); toast('⚡ ' + c.label); } catch (e) { toast('That did not work here.'); } } }, c.label))
+    const list = cheats.length ? cheats.map(cheatRow)
       : [el('p', { class: 'note' }, g ? 'Start a round of this game to see its cheats.' : 'Open a game to see its cheats.')];
-    const o = el('div', { class: 'overlay', style: 'position:fixed;z-index:95', onclick: e => { if (e.target === o) o.remove(); } }, el('div', { class: 'box', style: 'max-width:380px' },
+    const o = el('div', { class: 'overlay', style: 'position:fixed;z-index:95', onclick: e => { if (e.target === o) o.remove(); } }, el('div', { class: 'box', style: 'max-width:400px;max-height:85vh;overflow:auto' },
       el('div', { class: 'fhead' }, el('h2', {}, '⚡ Admin' + (g ? ': ' + g.name : '')), el('button', { class: 'btn alt small', 'aria-label': 'Close', onclick: () => o.remove() }, '✕')),
       el('div', { class: 'stack' }, ...list)));
-    document.body.append(o);
+    (document.fullscreenElement || document.body).append(o);
   }
+  // In full screen only the game box shows, so the admin button moves in and out with it.
+  document.addEventListener('fullscreenchange', () => { if (adminBtn.isConnected) (document.fullscreenElement || document.body).append(adminBtn); });
 
   const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   const sha = async s => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
@@ -66,7 +89,7 @@ const App = (() => {
 
   function toast(text) {
     const t = el('div', { class: 'toast', role: 'status', onanimationend: () => t.remove() }, text);
-    document.body.append(t);
+    (document.fullscreenElement || document.body).append(t);
   }
   // Slow drifting stars behind the menus. Paused during games to leave them the frame budget.
   function backdrop() {
@@ -334,7 +357,8 @@ const App = (() => {
       },
       add: f => cleanups.push(f),
       // Registers an admin-only action for the round that is running.
-      cheat: (label, fn) => cheats.push({ label, fn }),
+      // With ask set, the panel shows a box to type an amount, and fn gets the number.
+      cheat: (label, fn, ask) => cheats.push({ label, fn, ask }),
       on(t, type, f, opts) { t.addEventListener(type, f, opts); cleanups.push(() => t.removeEventListener(type, f, opts)); },
       loop(f) {
         let id, last = performance.now(), run = true;

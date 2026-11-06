@@ -174,3 +174,5 @@ body{background-attachment:fixed}
 .swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid #fff6}
 .shop button.on{border-color:var(--acc)}
 :fullscreen .toast{position:fixed}
+.cheatrow{display:grid;gap:6px;text-align:left;padding:8px;border-radius:12px;background:#ffffff0d}
+.cheatrow .in{padding:8px 10px;border-radius:10px;border:2px solid #ffffff22;background:#0006;color:inherit;font:inherit}
