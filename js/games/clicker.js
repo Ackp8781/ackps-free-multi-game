@@ -8,6 +8,7 @@ App.register({
     if (!ctx.stage.isConnected) return;
     const SHOP = [
       { id: 'pick', name: 'Better Pickaxe', icon: '⛏️', base: 15, click: 1 },
+      { id: 'auto', name: 'Auto Clicker', icon: '🖱️', base: 100, auto: 1 },
       { id: 'miner', name: 'Miner', icon: '👷', base: 25, rate: 1 },
       { id: 'drill', name: 'Drill', icon: '🪛', base: 300, rate: 10 },
       { id: 'dig', name: 'Excavator', icon: '🚜', base: 4000, rate: 80 },
@@ -33,19 +34,22 @@ App.register({
     // Upgrades are generated in families. need(s) unlocks one; apply runs on the effects object.
     const UPS = [];
     const TIERS = [[1, 10, 'Sturdy'], [5, 50, 'Polished'], [25, 500, 'Reinforced'], [50, 5e4, 'Turbo'], [100, 5e6, 'Titanium'], [150, 5e8, 'Diamond-Tipped'], [200, 5e10, 'Quantum'], [250, 5e13, 'Mythic'], [300, 5e16, 'Cosmic'], [350, 5e19, 'Ultimate']];
-    for (const b of SHOP) for (const [n, k, adj] of TIERS) UPS.push({ id: `${b.id}${n}`, icon: b.icon, name: `${adj} ${b.name}`, info: b.click ? 'Clicks x2' : `${b.name} output x2`, cost: b.base * k, need: s => (s.own[b.id] || 0) >= n, apply: e => { e.b[b.id] *= 2; } });
-    const STONES = ['Quartz', 'Amethyst', 'Topaz', 'Garnet', 'Opal', 'Jade', 'Sapphire', 'Ruby', 'Emerald', 'Diamond'], CUTS = ['Rough', 'Faceted', 'Brilliant'];
-    for (let k = 0; k < 30; k++) {
+    for (const b of SHOP) for (const [n, k, adj] of TIERS) UPS.push({ id: `${b.id}${n}`, icon: b.icon, name: `${adj} ${b.name}`, info: b.click ? 'Clicks x2' : b.auto ? 'Auto Clickers click twice as hard' : `${b.name} output x2`, cost: b.base * k, need: s => (s.own[b.id] || 0) >= n, apply: e => { e.b[b.id] *= 2; } });
+    const STONES = ['Quartz', 'Amethyst', 'Topaz', 'Garnet', 'Opal', 'Jade', 'Sapphire', 'Ruby', 'Emerald', 'Diamond', 'Onyx', 'Moonstone', 'Starstone', 'Voidstone', 'Prismite'], CUTS = ['Rough', 'Faceted', 'Brilliant'];
+    for (let k = 0; k < 45; k++) {
       const at = 1e3 * Math.pow(10, k);
       UPS.push({ id: 'cut' + k, icon: '💠', name: `${CUTS[k % 3]} ${STONES[Math.floor(k / 3)]}`, info: 'All production +10%', cost: at * 2, need: s => s.allTime >= at, apply: e => { e.global *= 1.1; } });
     }
-    for (let k = 0; k < 14; k++) {
+    for (let k = 0; k < 20; k++) {
       const at = 30 * Math.pow(3, k);
       UPS.push({ id: 'glove' + k, icon: '🧤', name: `Mining Gloves ${k + 1}`, info: 'Clicks x2', cost: 200 * Math.pow(40, k), need: s => s.clicks >= at, apply: e => { e.click *= 2; } });
     }
     for (let k = 0; k < 8; k++) UPS.push({ id: 'res' + k, icon: '🔔', name: `Resonant Strike ${k + 1}`, info: 'Clicks gain 1% of gems/s', cost: 5e4 * Math.pow(100, k), need: s => s.clicks >= 200 * (k + 1), apply: e => { e.clickPct += .01; } });
     for (let k = 0; k < 6; k++) UPS.push({ id: 'luck' + k, icon: '🍀', name: `Lucky Charm ${k + 1}`, info: 'Golden gems come 15% more often', cost: 5e4 * Math.pow(500, k), need: s => s.goldens >= k * 3 + 1, apply: e => { e.goldWait *= .85; } });
     for (let k = 0; k < 6; k++) UPS.push({ id: 'shine' + k, icon: '⌛', name: `Long Shine ${k + 1}`, info: 'Golden effects last 15% longer', cost: 2e5 * Math.pow(500, k), need: s => s.goldens >= k * 4 + 2, apply: e => { e.goldLen *= 1.15; } });
+    for (let k = 0; k < 8; k++) UPS.push({ id: 'tick' + k, icon: '⚙️', name: `Faster Springs ${k + 1}`, info: 'Auto Clickers click 50% faster', cost: 2000 * Math.pow(60, k), need: s => (s.own.auto || 0) >= 5 * (k + 1), apply: e => { e.autoSpeed *= 1.5; } });
+    for (let k = 0; k < 5; k++) UPS.push({ id: 'fury' + k, icon: '🔥', name: `Gem Fury ${k + 1}`, info: 'Frenzy multiplier +1', cost: 1e6 * Math.pow(1000, k), need: s => s.goldens >= k * 5 + 5, apply: e => { e.frenzyMul += 1; } });
+    for (let k = 0; k < 5; k++) UPS.push({ id: 'nap' + k, icon: '😴', name: `Night Shift ${k + 1}`, info: 'Offline mining +10% speed and +2 hours', cost: 5e5 * Math.pow(800, k), need: s => s.allTime >= 1e6 * Math.pow(1000, k), apply: e => { e.offPct += .1; e.offHours += 2; } });
     for (let k = 0; k < 12; k++) UPS.push({ id: 'trophy' + k, icon: '🏆', name: `Trophy Polish ${k + 1}`, info: 'Each achievement gives +1% more', cost: 1e5 * Math.pow(300, k), need: s => Object.keys(s.ach).length >= 10 * (k + 1), apply: e => { e.achPct += .01; } });
 
     const ACHS = [];
@@ -54,30 +58,36 @@ App.register({
     for (const n of [1, 100, 1000, 5000, 25000]) ACHS.push({ id: 'click' + n, icon: '👆', name: `${n} clicks`, test: s => s.clicks >= n });
     for (const n of [1, 7, 27, 77, 200]) ACHS.push({ id: 'gold' + n, icon: '✨', name: `Catch ${n} golden gems`, test: s => s.goldens >= n });
     for (const n of [10, 50, 100, 200]) ACHS.push({ id: 'ups' + n, icon: '📈', name: `Buy ${n} upgrades`, test: s => Object.keys(s.ups).length >= n });
+    for (const n of [1, 5, 10]) ACHS.push({ id: 'skin' + n, icon: '🎨', name: `Own ${n} skin${n > 1 ? 's' : ''}`, test: s => Object.keys(s.skins || {}).length >= n });
     for (const n of [1, 3, 5, 10]) ACHS.push({ id: 're' + n, icon: '🔁', name: `Rebirth ${n} times`, test: s => s.rebirths >= n });
 
     const REBIRTH = 1e6, GROW = 8;
-    const s = Object.assign({ gems: 0, total: 0, rebirths: 0, own: {}, last: Date.now(), ups: {}, ach: {}, clicks: 0, goldens: 0, allTime: 0, handmade: 0 }, ctx.data('save', {}));
+    const s = Object.assign({ gems: 0, total: 0, rebirths: 0, own: {}, last: Date.now(), ups: {}, ach: {}, clicks: 0, goldens: 0, allTime: 0, handmade: 0, skins: {}, skin: 'auto', autoClicks: 0 }, ctx.data('save', {}));
     s.allTime = Math.max(s.allTime, s.total);
     let fx = {}, frenzy = 0, clickFrenzy = 0, buyN = 1, sell = false, tab = 'Buildings';
     const recalc = () => {
-      fx = { b: Object.fromEntries(SHOP.map(i => [i.id, 1])), global: 1, click: 1, clickPct: 0, goldWait: 1, goldLen: 1, achPct: .01 };
+      fx = { b: Object.fromEntries(SHOP.map(i => [i.id, 1])), global: 1, click: 1, clickPct: 0, goldWait: 1, goldLen: 1, achPct: .01, autoSpeed: 1, frenzyMul: 7, offPct: .5, offHours: 2 };
       for (const u of UPS) if (s.ups[u.id]) u.apply(fx);
     };
     recalc();
     const mult = () => (1 + s.rebirths * .5) * fx.global * (1 + Object.keys(s.ach).length * fx.achPct);
     const bRate = i => (i.rate || 0) * fx.b[i.id] * mult();
     const baseSec = () => SHOP.reduce((a, i) => a + bRate(i) * (s.own[i.id] || 0), 0);
-    const perSec = () => baseSec() * (frenzy > 0 ? 7 : 1);
+    const perSec = () => baseSec() * (frenzy > 0 ? fx.frenzyMul : 1);
     const perClick = () => ((1 + (s.own.pick || 0)) * fx.b.pick * fx.click * mult() + perSec() * fx.clickPct) * (clickFrenzy > 0 ? 77 : 1);
+    // Each Auto Clicker presses the gem twice a second for you; upgrades make each press stronger or faster.
+    const autoClicksPerSec = () => (s.own.auto || 0) * 2 * fx.autoSpeed;
+    const autoPerSec = () => autoClicksPerSec() * perClick() * fx.b.auto;
     const costOf = (i, n) => { const own = s.own[i.id] || 0; return Math.ceil(i.base * Math.pow(1.15, own) * (Math.pow(1.15, n) - 1) / .15); };
     const refund = (i, n) => { const own = s.own[i.id] || 0; n = Math.min(n, own); return n ? i.base * Math.pow(1.15, own - n) * (Math.pow(1.15, n) - 1) / .15 * .5 : 0; };
     const gain = n => { s.gems += n; s.total += n; s.allTime += n; };
     const save = () => { s.last = Date.now(); ctx.save('save', s); ctx.score(Math.floor(s.allTime)); };
-    const note = t => { const n = el('div', { class: 'toast', role: 'status', onanimationend: () => n.remove() }, t); document.body.append(n); };
+    // In full screen only the game box is visible, so pop-ups go inside it.
+    const host = () => document.fullscreenElement || document.body;
+    const note = t => { const n = el('div', { class: 'toast', role: 'status', onanimationend: () => n.remove() }, t); host().append(n); };
 
-    const away = Math.min((Date.now() - s.last) / 1000, 7200);
-    const offline = away > 30 ? baseSec() * away * .5 : 0;
+    const away = Math.min((Date.now() - s.last) / 1000, fx.offHours * 3600);
+    const offline = away > 30 ? (baseSec() + autoPerSec()) * away * fx.offPct : 0;
     gain(offline);
 
     const count = el('h2', { style: 'font-size:30px', 'aria-live': 'off' });
@@ -90,10 +100,10 @@ App.register({
       Sfx.play('pop');
       const num = el('span', { class: 'floatnum', style: `margin-left:${Math.random() * 90 - 45}px`, onanimationend: () => num.remove() }, '+' + fmt(n));
       gem.append(num);
-      if (view) view.burst(new THREE.Vector3(0, 0, 1), COLORS[Math.min(s.rebirths, COLORS.length - 1)], 8, .16, 5);
+      if (view) view.burst(new THREE.Vector3(0, 0, 1), skinColor(), 8, .16, 5);
     } });
     const COLORS = [0x4fe3ff, 0xff5dc8, 0x7bff8a, 0xffd23f, 0xc08bff, 0xff6b4a];
-    let kick = 0, view = null;
+    let kick = 0, view = null, autoKick = 0;
     const need = () => REBIRTH * Math.pow(GROW, s.rebirths);
     const rebirth = el('button', { class: 'btn alt', onclick: () => {
       if (s.total < need()) return;
@@ -103,6 +113,7 @@ App.register({
 
     const rows = SHOP.map(i => {
       const owned = el('small'), info = el('small'), cost = el('b');
+      if (i.auto) info.title = 'Clicks the gem for you';
       const b = el('button', { onclick: () => {
         if (sell) {
           const n = Math.min(buyN, s.own[i.id] || 0);
@@ -119,10 +130,43 @@ App.register({
     const drawModes = () => modes.replaceChildren(...[1, 10, 100].map(n => el('button', { class: 'chip' + (buyN === n ? ' on' : ''), onclick: () => { buyN = n; drawModes(); paint(); } }, 'x' + n)),
       el('button', { class: 'chip' + (sell ? ' on' : ''), onclick: () => { sell = !sell; drawModes(); paint(); } }, sell ? 'Selling' : 'Sell'));
     drawModes();
+    // Skins change the look of the big gem. They survive rebirths.
+    const SKINS = [
+      { id: 'auto', name: 'Classic', info: 'Changes colour with each rebirth', color: null, shape: 'oct' },
+      { id: 'ruby', name: 'Ruby', color: 0xff3a5c, shape: 'oct', cost: 1e4 },
+      { id: 'emerald', name: 'Emerald', color: 0x2ee07a, shape: 'ico', cost: 1e6 },
+      { id: 'sapphire', name: 'Sapphire', color: 0x3a6bff, shape: 'dodeca', cost: 1e8 },
+      { id: 'amethyst', name: 'Amethyst', color: 0xb05cff, shape: 'tetra', cost: 1e10 },
+      { id: 'sun', name: 'Sun Gold', color: 0xffc928, shape: 'oct', cost: 1e13, metal: true },
+      { id: 'obsidian', name: 'Obsidian Cube', color: 0x2a1f3d, shape: 'cube', cost: 1e16, glow: 0x7a3cff },
+      { id: 'ice', name: 'Frost Crystal', color: 0xbdf3ff, shape: 'ico', cost: 1e20, clear: true },
+      { id: 'rainbow', name: 'Rainbow Prism', color: 0xffffff, shape: 'dodeca', cost: 1e25, rainbow: true },
+      { id: 'golden', name: 'Golden Gem', color: 0xffd23f, shape: 'oct', metal: true, info: 'Catch 50 golden gems', need: s => s.goldens >= 50 },
+      { id: 'clover', name: 'Lucky Ring', color: 0x3fe07a, shape: 'torus', info: 'Catch 100 golden gems', need: s => s.goldens >= 100 },
+      { id: 'champ', name: 'Champion Star', color: 0xffe08a, shape: 'star', metal: true, info: 'Unlock 100 achievements', need: s => Object.keys(s.ach).length >= 100 },
+      { id: 'phoenix', name: 'Phoenix Heart', color: 0xff5a1a, shape: 'ico', glow: 0xff3a00, info: 'Rebirth 5 times', need: s => s.rebirths >= 5 },
+    ];
+    const SHAPE_NAMES = { oct: 'Classic cut', ico: 'Brilliant cut', dodeca: 'Round cut', tetra: 'Pyramid cut', cube: 'Cube cut', torus: 'Ring', star: 'Star cut' };
+    const skinOf = () => SKINS.find(k => k.id === s.skin) || SKINS[0];
+    const skinColor = () => skinOf().color === null ? COLORS[Math.min(s.rebirths, COLORS.length - 1)] : skinOf().color;
+    const ownsSkin = k => k.id === 'auto' || s.skins[k.id] || (k.need && k.need(s));
+    const skinList = el('div', { class: 'shop', style: 'max-width:980px' });
+    function drawSkins() {
+      skinList.replaceChildren(...SKINS.map(k => {
+        const owned = ownsSkin(k), on = s.skin === k.id;
+        const swatch = el('i', { class: 'swatch', style: `background:#${(k.color === null ? COLORS[0] : k.color).toString(16).padStart(6, '0')}` });
+        const label = on ? 'Equipped' : owned ? 'Equip' : k.cost ? fmt(k.cost) : 'Locked';
+        return el('button', { class: on ? 'on' : '', disabled: !owned && (!k.cost || s.gems < k.cost), onclick: () => {
+          if (!owned) { if (s.gems < k.cost) return; s.gems -= k.cost; s.skins[k.id] = 1; Sfx.play('upgrade'); }
+          if (k.need) s.skins[k.id] = 1;
+          s.skin = k.id; drawSkins(); paint();
+        } }, el('span', {}, swatch, ` ${k.name}`, el('small', {}, k.info || SHAPE_NAMES[k.shape])), el('b', {}, label));
+      }));
+    }
     const upList = el('div', { class: 'shop', style: 'max-width:980px' }), achList = el('div', { class: 'tiles' }), stats = el('div', { class: 'panel', style: 'max-width:980px;line-height:1.8' });
-    const tabs = el('div', { class: 'row' }), panes = { Buildings: el('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr);gap:10px;justify-items:center;width:100%' }, modes, buildings), Upgrades: upList, Achievements: achList, Stats: stats };
+    const tabs = el('div', { class: 'row' }), panes = { Buildings: el('div', { style: 'display:grid;grid-template-columns:minmax(0,1fr);gap:10px;justify-items:center;width:100%' }, modes, buildings), Upgrades: upList, Skins: skinList, Achievements: achList, Stats: stats };
     const body = el('div', { style: 'width:100%;display:grid;grid-template-columns:minmax(0,1fr);justify-items:center' });
-    const drawTabs = () => tabs.replaceChildren(...Object.keys(panes).map(t => el('button', { class: 'chip' + (tab === t ? ' on' : ''), onclick: () => { tab = t; drawTabs(); body.replaceChildren(panes[t]); drawUps(); drawAch(); paint(); } }, t === 'Upgrades' ? `Upgrades (${openUps().length})` : t)));
+    const drawTabs = () => tabs.replaceChildren(...Object.keys(panes).map(t => el('button', { class: 'chip' + (tab === t ? ' on' : ''), onclick: () => { tab = t; drawTabs(); body.replaceChildren(panes[t]); drawUps(); drawAch(); drawSkins(); paint(); } }, t === 'Upgrades' ? `Upgrades (${openUps().length})` : t)));
     const openUps = () => UPS.filter(u => !s.ups[u.id] && u.need(s)).sort((a, b) => a.cost - b.cost);
     let upKey = '', upRows = [];
     function drawUps() {
@@ -153,29 +197,39 @@ App.register({
       if (roll < .45) {
         const n = Math.max(13, Math.min(s.gems * .15, baseSec() * 900));
         gain(n); note(`✨ Lucky! +${fmt(n)} gems`);
-      } else if (roll < .9) { frenzy = 77 * len; note('✨ Frenzy! Production x7'); }
+      } else if (roll < .9) { frenzy = 77 * len; note(`✨ Frenzy! Production x${fx.frenzyMul}`); }
       else { clickFrenzy = 13 * len; note('✨ Click Frenzy! Clicks x77'); }
     };
     const spawnGold = () => {
       goldEl = el('button', { class: 'goldgem', 'aria-label': 'Catch the golden gem', style: `left:${8 + Math.random() * 80}%;top:${12 + Math.random() * 70}%`, onclick: catchGold }, '💎');
-      document.body.append(goldEl);
+      host().append(goldEl);
       const mine = goldEl;
       setTimeout(() => { if (goldEl === mine) { mine.remove(); goldEl = null; } }, 13000 * fx.goldLen);
     };
     ctx.add(() => { if (goldEl) goldEl.remove(); goldEl = null; });
+    ctx.on(document, 'fullscreenchange', () => { if (goldEl) host().append(goldEl); });
 
     ctx.stage.append(count, rate, buffs, gem, tabs, body, rebirth);
     body.append(panes.Buildings);
     view = Gfx.stage(ctx, { parent: gem, ratio: 1, fov: 40, near: .1, far: 100, top: '#1a1540', bottom: '#2a2358', sunDir: [.4, 1, .8], shadow: 5 });
     view.camera.position.set(0, .6, 6); view.camera.lookAt(0, 0, 0);
-    let crystal = null, crystalTier = -1;
+    let crystal = null, crystalTier = '';
+    const SHAPES = { oct: () => new THREE.OctahedronGeometry(1.5, 1), ico: () => new THREE.IcosahedronGeometry(1.5, 0), dodeca: () => new THREE.DodecahedronGeometry(1.45, 0), tetra: () => new THREE.TetrahedronGeometry(1.8, 0), cube: () => new THREE.BoxGeometry(1.7, 1.7, 1.7).rotateX(Math.PI / 4).rotateZ(Math.atan(Math.SQRT1_2)), torus: () => new THREE.TorusGeometry(1.1, .45, 10, 20), star: () => new THREE.OctahedronGeometry(1.6, 0) };
+    const makeGem = k => {
+      const color = skinColor();
+      const m = new THREE.MeshStandardMaterial({ color, flatShading: true, metalness: k.metal ? .45 : .35, roughness: k.metal ? .3 : .08, emissive: k.glow || color, emissiveIntensity: k.glow ? .3 : k.metal ? .3 : .14, transparent: !!k.clear, opacity: k.clear ? .75 : 1 });
+      const g = new THREE.Mesh(SHAPES[k.shape](), m);
+      if (k.shape === 'star') g.add(new THREE.Mesh(new THREE.OctahedronGeometry(1.6, 0), m).rotateY(Math.PI / 4).rotateX(Math.PI / 4));
+      return g;
+    };
     const fill = new THREE.PointLight(0xffffff, .8); fill.position.set(-3, 2, 4); view.scene.add(fill);
     ctx.loop(dt => {
-      const tier = Math.min(s.rebirths, COLORS.length - 1);
+      const k = skinOf(), tier = k.id + Math.min(s.rebirths, COLORS.length - 1);
       if (tier !== crystalTier) {
         if (crystal) view.scene.remove(crystal);
-        crystal = Gfx.Models.gem(COLORS[tier]); view.scene.add(crystal); crystalTier = tier;
+        crystal = makeGem(k); view.scene.add(crystal); crystalTier = tier;
       }
+      if (k.rainbow) crystal.material.color.setHSL((performance.now() / 4000) % 1, .9, .6), crystal.material.emissive.copy(crystal.material.color);
       kick = Math.max(0, kick - dt * 5);
       crystal.rotation.y += dt * (.7 + kick * 9);
       crystal.rotation.x = Math.sin(crystal.rotation.y * .5) * .15;
@@ -184,13 +238,13 @@ App.register({
       if (Math.random() < dt * 1.5) view.burst(new THREE.Vector3((Math.random() - .5) * 2.4, (Math.random() - .5) * 2.4, 1.2), 0xffffff, 1, .07, 1);
       view.render(dt);
     });
-    ctx.help('Your mine keeps earning at half speed for up to 2 hours while you are away. Catch golden gems when they appear. Achievements boost all production. Rebirth resets your mine and upgrades for a permanent +50% bonus.');
+    ctx.help('Your mine keeps earning while you are away (half speed for 2 hours, more with Night Shift upgrades). Auto Clickers click the gem for you. Catch golden gems when they appear. Achievements boost all production. Rebirth resets your mine and upgrades for a permanent +50% bonus.');
     if (offline > 1) ctx.message('Welcome back!', `Your workers mined ${fmt(offline)} gems while you were away.`, [{ label: 'Collect', fn: () => {} }]);
 
     function paint() {
       count.textContent = `${fmt(s.gems)} gems`;
-      rate.textContent = `${fmt(perSec())} per second · ${fmt(perClick())} per click · x${fmt(mult())} bonus`;
-      buffs.textContent = [frenzy > 0 ? `Frenzy x7: ${Math.ceil(frenzy)}s` : '', clickFrenzy > 0 ? `Click Frenzy x77: ${Math.ceil(clickFrenzy)}s` : ''].filter(Boolean).join(' · ');
+      rate.textContent = `${fmt(perSec() + autoPerSec())} per second · ${fmt(perClick())} per click · x${fmt(mult())} bonus`;
+      buffs.textContent = [frenzy > 0 ? `Frenzy x${fx.frenzyMul}: ${Math.ceil(frenzy)}s` : '', clickFrenzy > 0 ? `Click Frenzy x77: ${Math.ceil(clickFrenzy)}s` : ''].filter(Boolean).join(' · ');
       // Like a mine being explored, only the next two unbought buildings show.
       let hidden = 0;
       for (const r of rows) {
@@ -198,7 +252,7 @@ App.register({
         r.b.style.display = own || hidden < 2 ? '' : 'none';
         if (!own) hidden++;
         r.cost.textContent = sell ? '+' + fmt(refund(r.i, buyN)) : fmt(p);
-        r.info.textContent = r.i.click ? `+${fmt(fx.b.pick * fx.click * mult())} per click` : `+${fmt(bRate(r.i))} gems/s each`;
+        r.info.textContent = r.i.click ? `+${fmt(fx.b.pick * fx.click * mult())} per click` : r.i.auto ? `${fmt(2 * fx.autoSpeed)} clicks/s each` : `+${fmt(bRate(r.i))} gems/s each`;
         r.owned.textContent = `Owned: ${own}`;
         r.b.disabled = sell ? !own : s.gems < p;
       }
@@ -206,11 +260,13 @@ App.register({
       rebirth.textContent = `🔁 Rebirth (${fmt(s.total)} / ${fmt(need())} mined)`;
       rebirth.disabled = s.total < need();
       if (tab === 'Stats') stats.innerHTML = '';
-      if (tab === 'Stats') stats.append(...[`All-time gems: ${fmt(s.allTime)}`, `This run: ${fmt(s.total)}`, `Mined by hand: ${fmt(s.handmade)}`, `Clicks: ${s.clicks}`, `Golden gems caught: ${s.goldens}`, `Buildings: ${SHOP.reduce((a, i) => a + (s.own[i.id] || 0), 0)}`, `Upgrades: ${Object.keys(s.ups).length} / ${UPS.length}`, `Achievements: ${Object.keys(s.ach).length} / ${ACHS.length}`, `Rebirths: ${s.rebirths}`].map(t => el('div', {}, t)));
+      if (tab === 'Stats') stats.append(...[`All-time gems: ${fmt(s.allTime)}`, `This run: ${fmt(s.total)}`, `Mined by hand: ${fmt(s.handmade)}`, `Clicks: ${s.clicks}`, `Golden gems caught: ${s.goldens}`, `Auto Clicker presses: ${fmt(s.autoClicks)}`, `Skins: ${SKINS.filter(ownsSkin).length} / ${SKINS.length}`, `Buildings: ${SHOP.reduce((a, i) => a + (s.own[i.id] || 0), 0)}`, `Upgrades: ${Object.keys(s.ups).length} / ${UPS.length}`, `Achievements: ${Object.keys(s.ach).length} / ${ACHS.length}`, `Rebirths: ${s.rebirths}`].map(t => el('div', {}, t)));
     }
     drawTabs();
     ctx.every(100, () => {
       gain(perSec() / 10);
+      const ac = autoClicksPerSec() / 10;
+      if (ac) { gain(autoPerSec() / 10); s.autoClicks += ac; autoKick += ac; if (autoKick >= 1) { autoKick %= 1; kick = Math.max(kick, .5); } }
       frenzy = Math.max(0, frenzy - .1); clickFrenzy = Math.max(0, clickFrenzy - .1);
       goldIn -= .1 / fx.goldWait;
       if (goldIn <= 0) { goldIn = 60 + Math.random() * 120; if (!goldEl) spawnGold(); }
@@ -230,9 +286,11 @@ App.register({
     ctx.cheat('📈 Unlock every upgrade', () => { for (const u of UPS) s.ups[u.id] = 1; recalc(); upKey = ''; upList.replaceChildren(); drawUps(); paint(); });
     ctx.cheat('🏆 Unlock every achievement', () => { for (const a of ACHS) s.ach[a.id] = 1; drawAch(); paint(); });
     ctx.cheat('✨ Golden gem now', () => { if (!goldEl) spawnGold(); });
+    ctx.cheat('🎨 Unlock every skin', () => { for (const k of SKINS) s.skins[k.id] = 1; drawSkins(); });
+    ctx.cheat('🖱️ +100 Auto Clickers', () => { s.own.auto = (s.own.auto || 0) + 100; paint(); });
     ctx.cheat('🔁 Make rebirth ready', () => { gain(Math.max(0, need() - s.total)); paint(); });
     ctx.add(save);
-    drawUps(); drawAch();
+    drawUps(); drawAch(); drawSkins();
     paint();
     if (location.hostname === 'localhost') window.__gem = { s, spawnGold, UPS, ACHS, recalc };
   },

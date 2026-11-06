@@ -171,3 +171,6 @@ body{background-attachment:fixed}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#666}.dot.on{background:#3fe07a;box-shadow:0 0 6px #3fe07a}
 @media (prefers-reduced-motion:reduce){.friends{transition:none}}
 .adminbtn{position:fixed;left:12px;bottom:12px;z-index:94;width:48px;height:48px;border-radius:50%;font-size:24px;background:var(--acc);border:3px solid #b98e10;cursor:pointer;box-shadow:0 6px 18px #0008}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid #fff6}
+.shop button.on{border-color:var(--acc)}
+:fullscreen .toast{position:fixed}
